@@ -77,16 +77,48 @@ cv::Mat applyShadowFreeBinarization(const cv::Mat& bgrInput, const FilterOptions
         gray = bgrInput.clone();
     }
 
+    const int maxDim = std::max(gray.cols, gray.rows);
+    const double bgScale = (maxDim > 800) ? (800.0 / static_cast<double>(maxDim)) : 1.0;
+    cv::Mat smallGray;
+    if (bgScale < 0.99) {
+        cv::resize(
+            gray,
+            smallGray,
+            cv::Size(
+                std::max(16, static_cast<int>(gray.cols * bgScale)),
+                std::max(16, static_cast<int>(gray.rows * bgScale))
+            ),
+            0,
+            0,
+            cv::INTER_AREA
+        );
+    } else {
+        smallGray = gray;
+    }
+
     cv::Mat dilated;
     const cv::Mat dilateKernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
-    cv::dilate(gray, dilated, dilateKernel);
+    cv::dilate(smallGray, dilated, dilateKernel);
 
-    const int blurSize = (options.shadowBlurKernelSize % 2 == 1)
-        ? options.shadowBlurKernelSize
-        : options.shadowBlurKernelSize + 1;
-    cv::Mat background;
-    cv::medianBlur(dilated, background, std::min(31, blurSize));
+    const int scaledBlur = std::max(
+        3,
+        static_cast<int>(options.shadowBlurKernelSize * bgScale)
+    );
+    const int blurSize = std::min(
+        31,
+        (scaledBlur % 2 == 1) ? scaledBlur : scaledBlur + 1
+    );
+    cv::Mat smallBackground;
+    cv::medianBlur(dilated, smallBackground, blurSize);
     dilated.release();
+
+    cv::Mat background;
+    if (bgScale < 0.99) {
+        cv::resize(smallBackground, background, gray.size(), 0, 0, cv::INTER_LINEAR);
+        smallBackground.release();
+    } else {
+        background = smallBackground;
+    }
 
     cv::Mat illuminationNormalized;
     cv::divide(gray, background, illuminationNormalized, 255.0);

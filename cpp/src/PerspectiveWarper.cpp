@@ -12,6 +12,27 @@
 
 namespace skan {
 
+namespace {
+
+bool isClockwiseOrderedQuad(const QuadCorners& quad) {
+    if (!PointSorter::isQuadConvex(quad)) {
+        return false;
+    }
+    const float cross =
+        (quad.topRight.x - quad.topLeft.x) * (quad.bottomRight.y - quad.topLeft.y) -
+        (quad.topRight.y - quad.topLeft.y) * (quad.bottomRight.x - quad.topLeft.x);
+    return cross > 0.0f;
+}
+
+QuadCorners ensureOrderedQuad(const QuadCorners& rawCorners) {
+    if (isClockwiseOrderedQuad(rawCorners)) {
+        return rawCorners;
+    }
+    return PointSorter::sortPoints(rawCorners.toArray());
+}
+
+}
+
 #if SKAN_HAS_OPENCV
 cv::Mat PerspectiveWarper::warpMatrixToRect(
     const cv::Mat& sourceImage,
@@ -22,7 +43,7 @@ cv::Mat PerspectiveWarper::warpMatrixToRect(
         return cv::Mat();
     }
 
-    const QuadCorners ordered = PointSorter::sortPoints(rawCorners.toArray());
+    const QuadCorners ordered = ensureOrderedQuad(rawCorners);
     const TargetDimensions dims = PointSorter::computeTargetDimensions(ordered);
 
     if (outDimensions) {
@@ -64,7 +85,7 @@ WarpOutputInfo PerspectiveWarper::warpFileToFile(
         return info;
     }
 
-    const QuadCorners ordered = PointSorter::sortPoints(rawCorners.toArray());
+    const QuadCorners ordered = ensureOrderedQuad(rawCorners);
 
 #if SKAN_HAS_OPENCV
     cv::Mat src = cv::imread(inputFilePath, cv::IMREAD_COLOR);

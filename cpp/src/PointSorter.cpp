@@ -28,36 +28,41 @@ float angleCosine(const Point2f& pt1, const Point2f& pt2, const Point2f& pt0) {
 }
 
 QuadCorners PointSorter::sortPoints(const std::array<Point2f, 4>& rawPoints) {
-    std::array<Point2f, 4> sortedBySum = rawPoints;
+    float centerX = 0.0f;
+    float centerY = 0.0f;
+    for (const auto& pt : rawPoints) {
+        centerX += pt.x;
+        centerY += pt.y;
+    }
+    centerX *= 0.25f;
+    centerY *= 0.25f;
+
+    std::array<Point2f, 4> clockwisePts = rawPoints;
     std::sort(
-        sortedBySum.begin(),
-        sortedBySum.end(),
-        [](const Point2f& a, const Point2f& b) {
-            return (a.x + a.y) < (b.x + b.y);
+        clockwisePts.begin(),
+        clockwisePts.end(),
+        [centerX, centerY](const Point2f& a, const Point2f& b) {
+            const float angleA = std::atan2(a.y - centerY, a.x - centerX);
+            const float angleB = std::atan2(b.y - centerY, b.x - centerX);
+            return angleA < angleB;
         }
     );
 
-    const Point2f topLeft = sortedBySum[0];
-    const Point2f bottomRight = sortedBySum[3];
-
-    const Point2f candidateA = sortedBySum[1];
-    const Point2f candidateB = sortedBySum[2];
-
-    const float diffA = candidateA.y - candidateA.x;
-    const float diffB = candidateB.y - candidateB.x;
-
-    Point2f topRight = (diffA < diffB) ? candidateA : candidateB;
-    Point2f bottomLeft = (diffA < diffB) ? candidateB : candidateA;
-
-    if (crossProductZ(topLeft, topRight, bottomRight) < 0.0f) {
-        std::swap(topRight, bottomLeft);
+    size_t topLeftIndex = 0;
+    float minScore = clockwisePts[0].x + clockwisePts[0].y;
+    for (size_t i = 1; i < 4; ++i) {
+        const float score = clockwisePts[i].x + clockwisePts[i].y;
+        if (score < minScore) {
+            minScore = score;
+            topLeftIndex = i;
+        }
     }
 
     return QuadCorners{
-        topLeft,
-        topRight,
-        bottomRight,
-        bottomLeft
+        clockwisePts[topLeftIndex],
+        clockwisePts[(topLeftIndex + 1) % 4],
+        clockwisePts[(topLeftIndex + 2) % 4],
+        clockwisePts[(topLeftIndex + 3) % 4]
     };
 }
 
