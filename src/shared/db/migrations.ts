@@ -1,5 +1,8 @@
 import {DB} from '@op-engineering/op-sqlite';
 import {
+  ALTER_PAGES_ADD_HEIGHT_SQL,
+  ALTER_PAGES_ADD_OCR_BLOCKS_SQL,
+  ALTER_PAGES_ADD_WIDTH_SQL,
   CREATE_DOCUMENTS_TABLE_SQL,
   CREATE_MIGRATIONS_TABLE_SQL,
   CREATE_PAGES_DOCUMENT_INDEX_SQL,
@@ -20,6 +23,14 @@ export const MIGRATIONS: readonly MigrationStep[] = [
       CREATE_PAGES_TABLE_SQL,
       CREATE_PAGES_DOCUMENT_INDEX_SQL,
       CREATE_PAGES_FTS_TABLE_SQL,
+    ],
+  },
+  {
+    version: 2,
+    statements: [
+      ALTER_PAGES_ADD_OCR_BLOCKS_SQL,
+      ALTER_PAGES_ADD_WIDTH_SQL,
+      ALTER_PAGES_ADD_HEIGHT_SQL,
     ],
   },
 ];

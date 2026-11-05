@@ -60,13 +60,18 @@ export const documentRepository = {
     await sqliteClient.executeAsync(
       `INSERT OR REPLACE INTO documents (
         id, title, doc_type, pdf_path, page_count, created_at, updated_at, cloud_synced_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+      ) VALUES (
+        ?, ?, ?, ?, ?,
+        COALESCE((SELECT created_at FROM documents WHERE id = ?), ?),
+        ?, ?
+      );`,
       [
         doc.id,
         doc.title,
         doc.docType,
         doc.pdfPath,
         doc.pageCount,
+        doc.id,
         doc.createdAt,
         doc.updatedAt,
         doc.cloudSyncedAt,
@@ -90,17 +95,18 @@ export const documentRepository = {
       documentId,
     ]);
 
-    await sqliteClient.executeAsync(
-      'DELETE FROM pages_fts WHERE document_id = ?;',
-      [documentId],
-    );
-    await sqliteClient.executeAsync(
-      'DELETE FROM pages WHERE document_id = ?;',
-      [documentId],
-    );
-    await sqliteClient.executeAsync('DELETE FROM documents WHERE id = ?;', [
-      documentId,
-    ]);
+    const db = sqliteClient.getDatabase();
+    await db.transaction(async tx => {
+      await tx.executeAsync('DELETE FROM pages_fts WHERE document_id = ?;', [
+        documentId,
+      ]);
+      await tx.executeAsync('DELETE FROM pages WHERE document_id = ?;', [
+        documentId,
+      ]);
+      await tx.executeAsync('DELETE FROM documents WHERE id = ?;', [
+        documentId,
+      ]);
+    });
 
     if (doc?.pdfPath) {
       await deleteFileIfExists(doc.pdfPath);

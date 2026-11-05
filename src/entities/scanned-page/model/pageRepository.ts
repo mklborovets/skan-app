@@ -1,4 +1,8 @@
-import {FilterPresetId, QuadCornersDto} from '@shared/api/native-modules';
+import {
+  FilterPresetId,
+  OcrTextBlock,
+  QuadCornersDto,
+} from '@shared/api/native-modules';
 import {sqliteClient} from '@shared/db';
 import {PageRowRecord, ScannedPage} from './types';
 
@@ -31,6 +35,18 @@ const parseCornersJson = (rawJson: string): QuadCornersDto => {
   return DEFAULT_CORNERS;
 };
 
+const parseOcrBlocksJson = (rawJson?: string): OcrTextBlock[] => {
+  if (!rawJson) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(rawJson) as unknown;
+    return Array.isArray(parsed) ? (parsed as OcrTextBlock[]) : [];
+  } catch {
+    return [];
+  }
+};
+
 const mapRowToScannedPage = (row: PageRowRecord): ScannedPage => ({
   id: row.id,
   documentId: row.document_id,
@@ -40,9 +56,9 @@ const mapRowToScannedPage = (row: PageRowRecord): ScannedPage => ({
   filterPreset: (row.filter_preset as FilterPresetId) || 'original',
   corners: parseCornersJson(row.corners_json),
   ocrText: row.ocr_text ?? '',
-  ocrBlocks: [],
-  width: 1080,
-  height: 1440,
+  ocrBlocks: parseOcrBlocksJson(row.ocr_blocks_json),
+  width: Number(row.width) > 0 ? Number(row.width) : 1080,
+  height: Number(row.height) > 0 ? Number(row.height) : 1440,
 });
 
 export const pageRepository = {
@@ -55,33 +71,38 @@ export const pageRepository = {
   },
 
   async upsertPage(page: ScannedPage): Promise<void> {
-    await sqliteClient.executeAsync(
-      `INSERT OR REPLACE INTO pages (
-        id, document_id, page_index, raw_uri, processed_uri, filter_preset, corners_json, ocr_text
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
-      [
-        page.id,
-        page.documentId,
-        page.pageIndex,
-        page.rawUri,
-        page.processedUri,
-        page.filterPreset,
-        JSON.stringify(page.corners),
-        page.ocrText,
-      ],
-    );
-
-    await sqliteClient.executeAsync(
-      'DELETE FROM pages_fts WHERE page_id = ?;',
-      [page.id],
-    );
-
-    if (page.ocrText.trim().length > 0) {
-      await sqliteClient.executeAsync(
-        'INSERT INTO pages_fts (document_id, page_id, ocr_text) VALUES (?, ?, ?);',
-        [page.documentId, page.id, page.ocrText],
+    const db = sqliteClient.getDatabase();
+    await db.transaction(async tx => {
+      await tx.executeAsync(
+        `INSERT OR REPLACE INTO pages (
+          id, document_id, page_index, raw_uri, processed_uri, filter_preset, corners_json, ocr_text, ocr_blocks_json, width, height
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        [
+          page.id,
+          page.documentId,
+          page.pageIndex,
+          page.rawUri,
+          page.processedUri,
+          page.filterPreset,
+          JSON.stringify(page.corners),
+          page.ocrText,
+          JSON.stringify(page.ocrBlocks),
+          page.width,
+          page.height,
+        ],
       );
-    }
+
+      await tx.executeAsync('DELETE FROM pages_fts WHERE page_id = ?;', [
+        page.id,
+      ]);
+
+      if (page.ocrText.trim().length > 0) {
+        await tx.executeAsync(
+          'INSERT INTO pages_fts (document_id, page_id, ocr_text) VALUES (?, ?, ?);',
+          [page.documentId, page.id, page.ocrText],
+        );
+      }
+    });
   },
 
   async updatePageOrders(
@@ -107,29 +128,34 @@ export const pageRepository = {
     documentId: string,
     pageId: string,
     ocrText: string,
+    ocrBlocks: OcrTextBlock[] = [],
   ): Promise<void> {
-    await sqliteClient.executeAsync(
-      'UPDATE pages SET ocr_text = ? WHERE id = ?;',
-      [ocrText, pageId],
-    );
-    await sqliteClient.executeAsync(
-      'DELETE FROM pages_fts WHERE page_id = ?;',
-      [pageId],
-    );
-    if (ocrText.trim().length > 0) {
-      await sqliteClient.executeAsync(
-        'INSERT INTO pages_fts (document_id, page_id, ocr_text) VALUES (?, ?, ?);',
-        [documentId, pageId, ocrText],
+    const db = sqliteClient.getDatabase();
+    await db.transaction(async tx => {
+      await tx.executeAsync(
+        'UPDATE pages SET ocr_text = ?, ocr_blocks_json = ? WHERE id = ?;',
+        [ocrText, JSON.stringify(ocrBlocks), pageId],
       );
-    }
+      await tx.executeAsync('DELETE FROM pages_fts WHERE page_id = ?;', [
+        pageId,
+      ]);
+      if (ocrText.trim().length > 0) {
+        await tx.executeAsync(
+          'INSERT INTO pages_fts (document_id, page_id, ocr_text) VALUES (?, ?, ?);',
+          [documentId, pageId, ocrText],
+        );
+      }
+    });
   },
 
   async deletePageById(pageId: string): Promise<void> {
-    await sqliteClient.executeAsync('DELETE FROM pages WHERE id = ?;', [pageId]);
-    await sqliteClient.executeAsync(
-      'DELETE FROM pages_fts WHERE page_id = ?;',
-      [pageId],
-    );
+    const db = sqliteClient.getDatabase();
+    await db.transaction(async tx => {
+      await tx.executeAsync('DELETE FROM pages WHERE id = ?;', [pageId]);
+      await tx.executeAsync('DELETE FROM pages_fts WHERE page_id = ?;', [
+        pageId,
+      ]);
+    });
   },
 };
 

@@ -27,5 +27,8 @@ export interface PageRowRecord {
   filter_preset: string;
   corners_json: string;
   ocr_text: string;
+  ocr_blocks_json?: string;
+  width?: number;
+  height?: number;
 }
 

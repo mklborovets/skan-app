@@ -28,6 +28,9 @@ const sanitizeFtsQuery = (raw: string): string => {
   return tokens.map(token => `"${token}"*`).join(' AND ');
 };
 
+const escapeLikePattern = (raw: string): string =>
+  raw.replace(/[\\%_]/g, match => `\\${match}`);
+
 const normalizeDocType = (rawType: string): DocumentType => {
   if (
     rawType === 'passport' ||
@@ -44,6 +47,7 @@ export const useFullTextSearch = (): FullTextSearchState => {
   const [query, setQuery] = useState<string>('');
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestIdRef = useRef<number>(0);
   const setSearchResults = useDocumentStore(state => state.setSearchResults);
 
   const runSearchQuery = useCallback(
@@ -55,6 +59,8 @@ export const useFullTextSearch = (): FullTextSearchState => {
         return;
       }
 
+      const currentRequestId = requestIdRef.current + 1;
+      requestIdRef.current = currentRequestId;
       setIsSearching(true);
       try {
         const rows = await sqliteClient.queryRows<DocumentRowRecord>(
@@ -71,16 +77,21 @@ export const useFullTextSearch = (): FullTextSearchState => {
           [ftsExpression],
         );
 
+        const escapedLike = escapeLikePattern(rawText.trim());
         const titleFallbackRows = await sqliteClient.queryRows<DocumentRowRecord>(
           `SELECT
             d.*,
             (SELECT p.processed_uri FROM pages p WHERE p.document_id = d.id ORDER BY p.page_index ASC LIMIT 1) AS cover_uri
           FROM documents d
-          WHERE d.title LIKE ?
+          WHERE d.title LIKE ? ESCAPE '\\'
           ORDER BY d.updated_at DESC
           LIMIT 25;`,
-          [`%${rawText.trim()}%`],
+          [`%${escapedLike}%`],
         );
+
+        if (requestIdRef.current !== currentRequestId) {
+          return;
+        }
 
         const mergedMap = new Map<string, ScannedDocument>();
         for (const row of [...rows, ...titleFallbackRows]) {
@@ -106,9 +117,13 @@ export const useFullTextSearch = (): FullTextSearchState => {
 
         setSearchResults(Array.from(mergedMap.values()));
       } catch {
-        setSearchResults([]);
+        if (requestIdRef.current === currentRequestId) {
+          setSearchResults([]);
+        }
       } finally {
-        setIsSearching(false);
+        if (requestIdRef.current === currentRequestId) {
+          setIsSearching(false);
+        }
       }
     },
     [setSearchResults],
@@ -121,6 +136,7 @@ export const useFullTextSearch = (): FullTextSearchState => {
         clearTimeout(timerRef.current);
       }
       if (!text.trim()) {
+        requestIdRef.current += 1;
         setSearchResults(null);
         setIsSearching(false);
         return;
@@ -136,6 +152,7 @@ export const useFullTextSearch = (): FullTextSearchState => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
+    requestIdRef.current += 1;
     setQuery('');
     setSearchResults(null);
     setIsSearching(false);
