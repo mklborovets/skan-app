@@ -1,4 +1,5 @@
 import {useCallback} from 'react';
+import {documentRepository, useDocumentStore} from '@entities/document';
 import {
   pageRepository,
   ScannedPage,
@@ -66,6 +67,18 @@ export const usePageReorder = (): PageReorderController => {
       const removed = removeSessionPage(pageId);
       await pageRepository.deletePageById(pageId);
       await persistPageOrder();
+      const sessionState = useScanSessionStore.getState();
+      const existingDoc = await documentRepository.getDocumentById(
+        sessionState.sessionId,
+      );
+      if (existingDoc) {
+        await documentRepository.upsertDocument({
+          ...existingDoc,
+          pageCount: sessionState.pages.length,
+          updatedAt: Date.now(),
+        });
+        await useDocumentStore.getState().refreshDocuments();
+      }
       if (removed) {
         await deleteFileIfExists(removed.rawUri);
         if (removed.processedUri !== removed.rawUri) {

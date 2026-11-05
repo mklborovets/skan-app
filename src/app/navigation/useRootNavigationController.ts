@@ -1,7 +1,11 @@
 import {useCallback, useEffect, useState} from 'react';
-import {Alert} from 'react-native';
+import {Alert, AppState, BackHandler} from 'react-native';
 import {documentRepository, useDocumentStore} from '@entities/document';
-import {ScannedPage, useScanSessionStore} from '@entities/scanned-page';
+import {
+  pageRepository,
+  ScannedPage,
+  useScanSessionStore,
+} from '@entities/scanned-page';
 import {usePdfExportPipeline} from '@features/export-searchable-pdf';
 import {
   consumeSharedIncomingImages,
@@ -23,13 +27,16 @@ export const useRootNavigationController = () => {
 
   const sessionPages = useScanSessionStore(state => state.pages);
   const startNewSession = useScanSessionStore(state => state.startNewSession);
+  const loadExistingPages = useScanSessionStore(
+    state => state.loadExistingPages,
+  );
   const addCapturedPage = useScanSessionStore(state => state.addCapturedPage);
   const refreshDocuments = useDocumentStore(state => state.refreshDocuments);
   const {isExporting, progressText, exportCurrentSessionToPdf} =
     usePdfExportPipeline();
 
-  useEffect(() => {
-    const ingestSharedImages = async () => {
+  const ingestSharedImages = useCallback(async () => {
+    try {
       const sharedUris = await consumeSharedIncomingImages();
       if (sharedUris.length === 0) {
         return;
@@ -66,9 +73,64 @@ export const useRootNavigationController = () => {
         addCapturedPage(newPage);
       }
       setRoute({screen: 'DocumentReview'});
-    };
-    void ingestSharedImages();
+    } catch {
+      return;
+    }
   }, [addCapturedPage, startNewSession]);
+
+  useEffect(() => {
+    void ingestSharedImages();
+    const sub = AppState.addEventListener('change', nextState => {
+      if (nextState === 'active') {
+        void ingestSharedImages();
+      }
+    });
+    return () => {
+      sub.remove();
+    };
+  }, [ingestSharedImages]);
+
+  useEffect(() => {
+    const onHardwareBack = (): boolean => {
+      if (route.screen === 'CropEdit') {
+        setRoute({screen: 'DocumentReview'});
+        return true;
+      }
+      if (route.screen === 'CameraScan') {
+        setRoute({
+          screen: sessionPages.length > 0 ? 'DocumentReview' : 'Library',
+        });
+        return true;
+      }
+      if (route.screen === 'DocumentReview' || route.screen === 'PdfPreview') {
+        setRoute({screen: 'Library'});
+        return true;
+      }
+      return false;
+    };
+
+    const backSub = BackHandler.addEventListener(
+      'hardwareBackPress',
+      onHardwareBack,
+    );
+    return () => {
+      backSub.remove();
+    };
+  }, [route.screen, sessionPages.length]);
+
+  const handleEditDocumentFromPreview = useCallback(
+    async (documentId: string) => {
+      const [doc, docPages] = await Promise.all([
+        documentRepository.getDocumentById(documentId),
+        pageRepository.getPagesByDocumentId(documentId),
+      ]);
+      if (doc && docPages.length > 0) {
+        loadExistingPages(doc.id, doc.title, docPages);
+      }
+      setRoute({screen: 'DocumentReview'});
+    },
+    [loadExistingPages],
+  );
 
   const handleExportSession = useCallback(async () => {
     const savedDoc = await exportCurrentSessionToPdf();
@@ -115,6 +177,7 @@ export const useRootNavigationController = () => {
     isExporting,
     progressText,
     handleExportSession,
+    handleEditDocumentFromPreview,
     handleDriveExport,
     handleRunBenchmark,
   };

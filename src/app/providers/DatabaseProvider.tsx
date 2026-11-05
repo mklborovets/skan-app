@@ -18,6 +18,10 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       try {
         await ensureAppStorageDirectories();
         await sqliteClient.initialize();
+      } catch {
+        if (mounted) {
+          setReady(true);
+        }
       } finally {
         if (mounted) {
           setReady(true);

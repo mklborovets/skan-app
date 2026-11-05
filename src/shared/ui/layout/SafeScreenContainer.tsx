@@ -1,12 +1,12 @@
 import React from 'react';
 import {
-  SafeAreaView,
   StatusBar,
   StyleProp,
   StyleSheet,
   View,
   ViewStyle,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import {theme} from '@shared/config/theme';
 
 export interface SafeScreenContainerProps {

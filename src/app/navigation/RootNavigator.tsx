@@ -17,6 +17,7 @@ export const RootNavigator: React.FC = () => {
     isExporting,
     progressText,
     handleExportSession,
+    handleEditDocumentFromPreview,
     handleDriveExport,
     handleRunBenchmark,
   } = useRootNavigationController();
@@ -77,7 +78,9 @@ export const RootNavigator: React.FC = () => {
     return (
       <PdfPreviewPage
         documentId={docId}
-        onEditDocument={() => setRoute({screen: 'DocumentReview'})}
+        onEditDocument={() => {
+          void handleEditDocumentFromPreview(docId);
+        }}
         onBackToLibrary={() => setRoute({screen: 'Library'})}
         extraActionsSlot={
           <Row justify="space-between">

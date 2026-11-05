@@ -1,12 +1,18 @@
 import React from 'react';
-import {StyleSheet, View} from 'react-native';
+import {StyleSheet} from 'react-native';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
 
 export interface GestureProviderProps {
   children: React.ReactNode;
 }
 
 export const GestureProvider: React.FC<GestureProviderProps> = ({children}) => {
-  return <View style={styles.root}>{children}</View>;
+  return (
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider>{children}</SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
 };
 
 const styles = StyleSheet.create({

@@ -1,6 +1,7 @@
 import React from 'react';
 import {Image, StyleSheet, TextInput, View} from 'react-native';
 import {FilterPresetSelector} from '@features/apply-image-filter';
+import {ClassificationSummaryChip} from '@features/classify-document-type';
 import {DraggablePageGrid} from '@features/reorder-document-pages';
 import {theme} from '@shared/config/theme';
 import {IconButton} from '@shared/ui/button/IconButton';
@@ -54,6 +55,8 @@ export const PageCarouselEditor: React.FC<PageCarouselEditorProps> = ({
           </View>
         )}
       </View>
+
+      <ClassificationSummaryChip result={controller.classification} />
 
       {activePage ? (
         <FilterPresetSelector

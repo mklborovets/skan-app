@@ -1,5 +1,5 @@
 import {useCallback, useState} from 'react';
-import {useScanSessionStore} from '@entities/scanned-page';
+import {pageRepository, useScanSessionStore} from '@entities/scanned-page';
 import {
   FilterPresetId,
   warpAndFilterImage,
@@ -60,18 +60,34 @@ export const useImageFilterProcessor = (): ImageFilterProcessorState => {
           preset,
         });
 
+        const nextWidth = result.width > 0 ? result.width : targetPage.width;
+        const nextHeight = result.height > 0 ? result.height : targetPage.height;
+
         updatePageCropAndFilter({
           pageId: targetPage.id,
           processedUri: result.outputUri,
           corners: targetPage.corners,
           filterPreset: preset,
-          width: result.width,
-          height: result.height,
+          width: nextWidth,
+          height: nextHeight,
         });
 
-        if (previousProcessedUri !== targetPage.rawUri) {
+        await pageRepository.upsertPage({
+          ...targetPage,
+          processedUri: result.outputUri,
+          filterPreset: preset,
+          width: nextWidth,
+          height: nextHeight,
+        });
+
+        if (
+          previousProcessedUri !== targetPage.rawUri &&
+          previousProcessedUri !== result.outputUri
+        ) {
           await deleteFileIfExists(previousProcessedUri);
         }
+      } catch {
+        return;
       } finally {
         setIsApplyingFilter(false);
       }

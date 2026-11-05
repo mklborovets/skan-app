@@ -1,8 +1,10 @@
-import {useCallback, useMemo} from 'react';
+import {useCallback, useEffect, useMemo} from 'react';
 import {ScannedPage, useScanSessionStore} from '@entities/scanned-page';
 import {useImageFilterProcessor} from '@features/apply-image-filter';
+import {useDocumentClassifier} from '@features/classify-document-type';
 import {usePageReorder} from '@features/reorder-document-pages';
 import {FilterPresetId} from '@shared/api/native-modules';
+import {ClassificationResult} from '@shared/lib/classification/documentClassifier';
 
 export interface UsePageCarouselControllerParams {
   onAddMorePages: () => void;
@@ -15,6 +17,7 @@ export interface PageCarouselControllerState {
   documentTitle: string;
   pages: ScannedPage[];
   activePage: ScannedPage | null;
+  classification: ClassificationResult | null;
   isApplyingFilter: boolean;
   setDocumentTitle: (title: string) => void;
   onSelectPage: (pageId: string) => void;
@@ -45,11 +48,18 @@ export const usePageCarouselController = ({
   } = usePageReorder();
 
   const {isApplyingFilter, applyFilterToActivePage} = useImageFilterProcessor();
+  const {classification, analyzePageAndClassify} = useDocumentClassifier();
 
   const activePage = useMemo(
     () => pages.find(p => p.id === activePageId) ?? pages[0] ?? null,
     [activePageId, pages],
   );
+
+  useEffect(() => {
+    if (activePage) {
+      void analyzePageAndClassify(activePage);
+    }
+  }, [activePage, analyzePageAndClassify]);
 
   const onEditCropPress = useCallback(() => {
     if (activePage) {
@@ -89,6 +99,7 @@ export const usePageCarouselController = ({
     documentTitle,
     pages,
     activePage,
+    classification,
     isApplyingFilter,
     setDocumentTitle,
     onSelectPage: selectPage,
