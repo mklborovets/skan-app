@@ -231,3 +231,4 @@ export const useLiveScannerController = ({
     onClosePress: onCancel,
   };
 };
+

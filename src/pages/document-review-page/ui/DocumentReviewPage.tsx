@@ -36,3 +36,4 @@ export const DocumentReviewPage: React.FC<DocumentReviewPageProps> = ({
     </SafeScreenContainer>
   );
 };
+

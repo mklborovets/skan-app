@@ -41,3 +41,4 @@ export const computeMeanCornerDrift = (
   const d3 = distanceBetweenPoints(first[3], second[3]);
   return (d0 + d1 + d2 + d3) / 4;
 };
+

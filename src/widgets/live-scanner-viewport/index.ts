@@ -7,3 +7,4 @@ export {LiveScannerViewport} from './ui/LiveScannerViewport';
 export type {LiveScannerViewportProps} from './ui/LiveScannerViewport';
 export {ScannerControlsBar} from './ui/ScannerControlsBar';
 export type {ScannerControlsBarProps} from './ui/ScannerControlsBar';
+

@@ -19,3 +19,4 @@ export const SCAN_CONSTANTS = {
   LOUPE_ZOOM_FACTOR: 2.4,
   CORNER_SNAP_RADIUS: 18,
 } as const;
+

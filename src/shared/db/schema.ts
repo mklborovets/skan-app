@@ -47,3 +47,4 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   applied_at INTEGER NOT NULL
 );
 `;
+

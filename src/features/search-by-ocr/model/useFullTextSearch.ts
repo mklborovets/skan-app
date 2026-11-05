@@ -148,3 +148,4 @@ export const useFullTextSearch = (): FullTextSearchState => {
     onClearQuery,
   };
 };
+

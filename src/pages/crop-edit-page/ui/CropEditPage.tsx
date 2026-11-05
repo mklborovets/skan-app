@@ -28,3 +28,4 @@ export const CropEditPage: React.FC<CropEditPageProps> = ({
     </SafeScreenContainer>
   );
 };
+

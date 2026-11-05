@@ -69,3 +69,4 @@ jobs:
       - name: Assemble Debug APK
         working-directory: android
         run: gradle assembleDebug --no-daemon
+

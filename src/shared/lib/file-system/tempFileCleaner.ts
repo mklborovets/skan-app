@@ -69,3 +69,4 @@ export const getTotalScanStorageBytes = async (): Promise<number> => {
   ]);
   return rawBytes + processedBytes;
 };
+

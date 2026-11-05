@@ -119,3 +119,4 @@ class PdfGeneratorModule: NSObject {
         return CGRect(x: x, y: y, width: width, height: height)
     }
 }
+

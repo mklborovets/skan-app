@@ -20,3 +20,4 @@ export const AppIcon: React.FC<AppIconProps> = ({
     <IconComponent size={size} color={color} strokeWidth={strokeWidth} />
   );
 };
+

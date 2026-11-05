@@ -186,3 +186,4 @@ export const useScanSessionStore = create<ScanSessionState>((set, get) => ({
     });
   },
 }));
+

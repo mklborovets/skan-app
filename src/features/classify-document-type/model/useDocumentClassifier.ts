@@ -43,3 +43,4 @@ export const useDocumentClassifier = (): DocumentClassifierState => {
     analyzePageAndClassify,
   };
 };
+

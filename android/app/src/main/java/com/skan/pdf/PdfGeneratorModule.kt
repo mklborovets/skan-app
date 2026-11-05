@@ -180,3 +180,4 @@ class PdfGeneratorModule(
         return RectF(left, top, left + scaledWidth, top + scaledHeight)
     }
 }
+

@@ -54,3 +54,4 @@ export const runDatabaseMigrations = async (db: DB): Promise<void> => {
     });
   }
 };
+

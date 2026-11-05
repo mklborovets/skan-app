@@ -134,3 +134,4 @@ export const parseQuadCornersJson = (
 
 export const buildSvgPolygonPoints = (quad: ScanQuad): string =>
   `${quad.topLeft.x},${quad.topLeft.y} ${quad.topRight.x},${quad.topRight.y} ${quad.bottomRight.x},${quad.bottomRight.y} ${quad.bottomLeft.x},${quad.bottomLeft.y}`;
+

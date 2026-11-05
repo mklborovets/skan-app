@@ -48,3 +48,4 @@ export const useDocumentStore = create<DocumentStoreState>(set => ({
     set({searchResults: results});
   },
 }));
+

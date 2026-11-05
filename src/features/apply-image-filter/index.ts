@@ -8,3 +8,4 @@ export type {
 } from './model/useImageFilterProcessor';
 export {FilterPresetSelector} from './ui/FilterPresetSelector';
 export type {FilterPresetSelectorProps} from './ui/FilterPresetSelector';
+

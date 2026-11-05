@@ -21,3 +21,4 @@ export interface QuadDetectionFrame {
   areaRatio: number;
   sourceSize: FrameDimensions;
 }
+

@@ -28,3 +28,4 @@ export const CameraScanPage: React.FC<CameraScanPageProps> = ({
     </SafeScreenContainer>
   );
 };
+

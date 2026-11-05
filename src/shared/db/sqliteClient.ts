@@ -55,3 +55,4 @@ class SqliteClient {
 }
 
 export const sqliteClient = new SqliteClient();
+

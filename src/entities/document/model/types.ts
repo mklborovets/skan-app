@@ -30,3 +30,4 @@ export interface DocumentRowRecord {
   cover_uri?: string | null;
   matched_snippet?: string | null;
 }
+

@@ -43,3 +43,4 @@ export const recognizeTextWithMlKit = async (
     detectedBarcodes: [],
   };
 };
+

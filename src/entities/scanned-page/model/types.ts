@@ -28,3 +28,4 @@ export interface PageRowRecord {
   corners_json: string;
   ocr_text: string;
 }
+

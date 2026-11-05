@@ -4,3 +4,4 @@ export {useFrameSmoothing} from './model/useFrameSmoothing';
 export type {SmoothedQuadState} from './model/useFrameSmoothing';
 export {QuadOverlaySvg} from './ui/QuadOverlaySvg';
 export type {QuadOverlaySvgProps} from './ui/QuadOverlaySvg';
+

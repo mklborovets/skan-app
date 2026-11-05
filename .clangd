@@ -5,3 +5,4 @@ CompileFlags:
     - -I/Users/admin/Desktop/Projects/skan-app/cpp/include
     - -I/Users/admin/Desktop/Projects/skan-app/cpp/jsi
     - -I/Users/admin/Desktop/Projects/skan-app/node_modules/react-native/ReactCommon/jsi
+

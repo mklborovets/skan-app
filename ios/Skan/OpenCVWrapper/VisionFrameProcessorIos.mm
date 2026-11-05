@@ -79,3 +79,4 @@ std::atomic<bool> gIosFrameProcessing{false};
 VISION_EXPORT_FRAME_PROCESSOR(SkanVisionFrameProcessorIos, detectDocumentEdges)
 
 @end
+

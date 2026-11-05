@@ -135,3 +135,4 @@ class BonusIntegrationsModule(
         promise.resolve(res)
     }
 }
+

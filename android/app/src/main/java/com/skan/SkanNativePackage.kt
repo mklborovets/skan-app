@@ -21,3 +21,4 @@ class SkanNativePackage : ReactPackage {
         reactContext: ReactApplicationContext
     ): List<ViewManager<*, *>> = emptyList()
 }
+

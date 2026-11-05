@@ -81,3 +81,4 @@ export const generateSearchablePdfOnDevice = async (
     fileSizeBytes: options.pages.length * 145000,
   };
 };
+

@@ -72,3 +72,4 @@ export const runMlKitDocumentScannerBenchmark = async (
     offlineCapable: true,
   };
 };
+

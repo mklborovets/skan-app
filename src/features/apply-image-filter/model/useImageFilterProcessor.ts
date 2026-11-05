@@ -84,3 +84,4 @@ export const useImageFilterProcessor = (): ImageFilterProcessorState => {
     applyFilterToActivePage,
   };
 };
+

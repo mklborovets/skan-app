@@ -81,3 +81,4 @@ export const theme = {
 export type AppTheme = typeof theme;
 export type ThemeColorKey = keyof typeof theme.colors;
 export type TypographyVariant = keyof typeof theme.typography;
+

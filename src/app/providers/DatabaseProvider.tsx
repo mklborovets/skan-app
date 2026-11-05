@@ -41,3 +41,4 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
 
   return <>{children}</>;
 };
+

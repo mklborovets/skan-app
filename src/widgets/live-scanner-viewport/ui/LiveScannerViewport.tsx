@@ -130,3 +130,4 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
   },
 });
+

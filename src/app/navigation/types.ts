@@ -10,3 +10,4 @@ export interface NavigationRouteState {
   activePageId?: string;
   activeDocumentId?: string;
 }
+
