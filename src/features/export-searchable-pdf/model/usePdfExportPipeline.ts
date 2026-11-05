@@ -1,5 +1,6 @@
 import {useCallback, useState} from 'react';
 import {
+  documentRepository,
   DocumentType,
   ScannedDocument,
   useDocumentStore,
@@ -20,7 +21,10 @@ import {
   buildExportedPdfFilePath,
   ensureAppStorageDirectories,
 } from '@shared/lib/file-system/pathResolver';
-import {purgeRawScanCache} from '@shared/lib/file-system/tempFileCleaner';
+import {
+  deleteFileIfExists,
+  purgeRawScanCache,
+} from '@shared/lib/file-system/tempFileCleaner';
 
 export interface PdfExportPipelineState {
   isExporting: boolean;
@@ -48,6 +52,9 @@ export const usePdfExportPipeline = (): PdfExportPipelineState => {
       setIsExporting(true);
       try {
         await ensureAppStorageDirectories();
+        const existingDoc =
+          await documentRepository.getDocumentById(sessionId);
+        const previousPdfPath = existingDoc?.pdfPath ?? null;
         const now = Date.now();
         const pdfOutputPath = buildExportedPdfFilePath(sessionId);
 
@@ -55,12 +62,12 @@ export const usePdfExportPipeline = (): PdfExportPipelineState => {
           id: sessionId,
           title: activeDocumentTitle.trim() || `Scan ${sessionId}`,
           docType: docTypeOverride,
-          pdfPath: null,
+          pdfPath: previousPdfPath,
           coverUri: pages[0]?.processedUri ?? null,
           pageCount: pages.length,
-          createdAt: now,
+          createdAt: existingDoc?.createdAt ?? now,
           updatedAt: now,
-          cloudSyncedAt: null,
+          cloudSyncedAt: existingDoc?.cloudSyncedAt ?? null,
         };
         await saveDocumentRecord(initialDoc);
 
@@ -126,6 +133,13 @@ export const usePdfExportPipeline = (): PdfExportPipelineState => {
           updatedAt: Date.now(),
         };
         await saveDocumentRecord(completedDoc);
+
+        if (
+          previousPdfPath &&
+          previousPdfPath !== pdfResponse.pdfUri
+        ) {
+          await deleteFileIfExists(previousPdfPath);
+        }
 
         const activeRawUris = pages.map(p => p.rawUri);
         await purgeRawScanCache(activeRawUris);

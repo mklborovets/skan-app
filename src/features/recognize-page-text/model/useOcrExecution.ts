@@ -32,6 +32,7 @@ export const useOcrExecution = (): OcrExecutionState => {
         page.documentId,
         page.id,
         result.fullText,
+        result.blocks,
       );
       return result;
     },

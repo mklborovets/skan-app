@@ -1,12 +1,12 @@
-import {useCallback, useMemo, useState} from 'react';
-import {LayoutChangeEvent} from 'react-native';
+import {useCallback, useEffect, useMemo, useState} from 'react';
+import {Image, LayoutChangeEvent} from 'react-native';
 import {
   createDefaultScanQuad,
   FrameDimensions,
   scaleQuadBetweenDimensions,
   ScanQuad,
 } from '@entities/scan-quad';
-import {useScanSessionStore} from '@entities/scanned-page';
+import {pageRepository, useScanSessionStore} from '@entities/scanned-page';
 import {
   CornerGesturesState,
   useCornerGestures,
@@ -19,6 +19,7 @@ import {
   buildProcessedPageFilePath,
   ensureFileUriPrefix,
 } from '@shared/lib/file-system/pathResolver';
+import {deleteFileIfExists} from '@shared/lib/file-system/tempFileCleaner';
 
 export interface UseInteractiveCropControllerParams {
   pageId: string;
@@ -53,15 +54,36 @@ export const useInteractiveCropController = ({
     width: 340,
     height: 460,
   });
+  const [rawImageSize, setRawImageSize] = useState<FrameDimensions | null>(
+    null,
+  );
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
-  const sourceSize: FrameDimensions = useMemo(
-    () => ({
-      width: page?.width ?? 1080,
-      height: page?.height ?? 1440,
-    }),
-    [page?.height, page?.width],
-  );
+  const sourceSize: FrameDimensions = useMemo(() => {
+    if (rawImageSize && rawImageSize.width > 0 && rawImageSize.height > 0) {
+      return rawImageSize;
+    }
+    const maxCornerX = page
+      ? Math.max(
+          page.corners.topLeft.x,
+          page.corners.topRight.x,
+          page.corners.bottomRight.x,
+          page.corners.bottomLeft.x,
+        )
+      : 0;
+    const maxCornerY = page
+      ? Math.max(
+          page.corners.topLeft.y,
+          page.corners.topRight.y,
+          page.corners.bottomRight.y,
+          page.corners.bottomLeft.y,
+        )
+      : 0;
+    return {
+      width: Math.max(page?.width ?? 1080, Math.round(maxCornerX / 0.92)),
+      height: Math.max(page?.height ?? 1440, Math.round(maxCornerY / 0.92)),
+    };
+  }, [page, rawImageSize]);
 
   const initialBoardQuad: ScanQuad = useMemo(() => {
     if (!page) {
@@ -74,6 +96,29 @@ export const useInteractiveCropController = ({
     initialQuad: initialBoardQuad,
     boardSize,
   });
+
+  useEffect(() => {
+    if (!page?.rawUri) {
+      return;
+    }
+    let active = true;
+    Image.getSize(
+      page.rawUri,
+      (width, height) => {
+        if (active && width > 0 && height > 0) {
+          const resolved = {width, height};
+          setRawImageSize(resolved);
+          gestures.setQuad(
+            scaleQuadBetweenDimensions(page.corners, resolved, boardSize),
+          );
+        }
+      },
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, [boardSize, gestures, page]);
 
   const onBoardLayout = useCallback(
     (event: LayoutChangeEvent) => {
@@ -122,6 +167,7 @@ export const useInteractiveCropController = ({
     }
     setIsProcessing(true);
     try {
+      const previousProcessedUri = page.processedUri;
       const fullResQuad = scaleQuadBetweenDimensions(
         gestures.quad,
         boardSize,
@@ -139,14 +185,33 @@ export const useInteractiveCropController = ({
         preset: page.filterPreset,
       });
 
+      const nextWidth = warped.width > 0 ? warped.width : page.width;
+      const nextHeight = warped.height > 0 ? warped.height : page.height;
+
       updatePageCropAndFilter({
         pageId: page.id,
         processedUri: warped.outputUri,
         corners: fullResQuad,
         filterPreset: page.filterPreset,
-        width: warped.width,
-        height: warped.height,
+        width: nextWidth,
+        height: nextHeight,
       });
+
+      await pageRepository.upsertPage({
+        ...page,
+        processedUri: warped.outputUri,
+        corners: fullResQuad,
+        width: nextWidth,
+        height: nextHeight,
+      });
+
+      if (
+        previousProcessedUri &&
+        previousProcessedUri !== page.rawUri &&
+        previousProcessedUri !== warped.outputUri
+      ) {
+        await deleteFileIfExists(previousProcessedUri);
+      }
 
       onApplyCompleted();
     } finally {

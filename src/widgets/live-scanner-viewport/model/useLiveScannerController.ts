@@ -1,5 +1,6 @@
 import {useCallback, useRef, useState} from 'react';
 import {LayoutChangeEvent} from 'react-native';
+import RNFS from 'react-native-fs';
 import {
   Camera,
   CameraDevice,
@@ -25,9 +26,12 @@ import {
 } from '@shared/api/native-modules';
 import {
   buildProcessedPageFilePath,
+  buildRawScanFilePath,
   ensureAppStorageDirectories,
   ensureFileUriPrefix,
+  stripFileUriPrefix,
 } from '@shared/lib/file-system/pathResolver';
+import {deleteFileIfExists} from '@shared/lib/file-system/tempFileCleaner';
 import {useCameraPermission} from '@shared/lib/permissions/useCameraPermission';
 
 export interface UseLiveScannerControllerParams {
@@ -93,9 +97,10 @@ export const useLiveScannerController = ({
       try {
         await ensureAppStorageDirectories();
         const pageId = `page_${Date.now()}`;
+        const rawCachePath = buildRawScanFilePath(pageId);
         const processedPath = buildProcessedPageFilePath(pageId, 'bw_document');
 
-        let rawUri = ensureFileUriPrefix(processedPath);
+        let rawUri = ensureFileUriPrefix(rawCachePath);
         let photoWidth = 1080;
         let photoHeight = 1440;
 
@@ -104,15 +109,31 @@ export const useLiveScannerController = ({
             flash: torchOn ? 'on' : 'off',
             enableShutterSound: false,
           });
-          rawUri = ensureFileUriPrefix(photo.path);
+          const capturedCleanPath = stripFileUriPrefix(photo.path);
+          if (
+            capturedCleanPath !== rawCachePath &&
+            (await RNFS.exists(capturedCleanPath))
+          ) {
+            await RNFS.copyFile(capturedCleanPath, rawCachePath);
+            await deleteFileIfExists(capturedCleanPath);
+            rawUri = ensureFileUriPrefix(rawCachePath);
+          } else {
+            rawUri = ensureFileUriPrefix(photo.path);
+          }
           photoWidth = photo.width;
           photoHeight = photo.height;
         }
 
         const staticDetection = await detectStaticEdges(rawUri);
         const targetSize: FrameDimensions = {
-          width: photoWidth,
-          height: photoHeight,
+          width:
+            staticDetection.frameWidth > 0
+              ? staticDetection.frameWidth
+              : photoWidth,
+          height:
+            staticDetection.frameHeight > 0
+              ? staticDetection.frameHeight
+              : photoHeight,
         };
 
         const detectedCorners = staticDetection.detected
@@ -142,8 +163,8 @@ export const useLiveScannerController = ({
           corners: detectedCorners,
           ocrText: '',
           ocrBlocks: [],
-          width: photoWidth,
-          height: photoHeight,
+          width: warped.width > 0 ? warped.width : photoWidth,
+          height: warped.height > 0 ? warped.height : photoHeight,
         };
 
         addCapturedPage(newPage);

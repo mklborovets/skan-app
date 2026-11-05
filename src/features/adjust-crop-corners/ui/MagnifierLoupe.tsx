@@ -35,10 +35,14 @@ export const MagnifierLoupe: React.FC<MagnifierLoupeProps> = ({
     12,
     Math.min(boardSize.width - diameter - 12, focalPoint.x - radius),
   );
-  const loupeTop =
+  const preferredTop =
     focalPoint.y > diameter + 36
       ? focalPoint.y - diameter - 28
       : focalPoint.y + 28;
+  const loupeTop = Math.max(
+    12,
+    Math.min(Math.max(12, boardSize.height - diameter - 12), preferredTop),
+  );
 
   const imageTranslateX = radius - focalPoint.x * zoom;
   const imageTranslateY = radius - focalPoint.y * zoom;
