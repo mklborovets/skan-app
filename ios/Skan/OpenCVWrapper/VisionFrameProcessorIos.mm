@@ -1,15 +1,59 @@
+#include "EdgeDetector.hpp"
+#include "SkanOpenCvJsiModule.hpp"
+#include <atomic>
+#include <cstdint>
+#include <jsi/jsi.h>
+
+namespace skan {
+
+bool tryAcquireIosFrameLock(std::atomic<bool>& flag) {
+    bool expected = false;
+    return flag.compare_exchange_strong(expected, true, std::memory_order_acquire);
+}
+
+void releaseIosFrameLock(std::atomic<bool>& flag) {
+    flag.store(false, std::memory_order_release);
+}
+
+EdgeDetectionResult runIosFrameEdgeDetection(
+    const uint8_t* yPlaneAddress,
+    int width,
+    int height,
+    int bytesPerRow
+) {
+    if (!yPlaneAddress || width <= 0 || height <= 0) {
+        return EdgeDetectionResult{};
+    }
+    return EdgeDetector::detectFromYPlane(
+        yPlaneAddress,
+        width,
+        height,
+        bytesPerRow
+    );
+}
+
+void installIosOpenCvJsi(facebook::jsi::Runtime* runtime) {
+    if (runtime) {
+        SkanOpenCvJsiModule::install(*runtime);
+    }
+}
+
+}
+
+#if defined(__OBJC__) && __has_include(<VisionCamera/FrameProcessorPlugin.h>)
 #import <Foundation/Foundation.h>
 #import <CoreVideo/CoreVideo.h>
-#import <React/RCTBridge+Private.h>
-#import <React/RCTBridgeModule.h>
 #import <VisionCamera/FrameProcessorPlugin.h>
 #import <VisionCamera/FrameProcessorPluginRegistry.h>
 #import <VisionCamera/Frame.h>
 
-#include "EdgeDetector.hpp"
-#include "SkanOpenCvJsiModule.hpp"
-#include <atomic>
-#include <jsi/jsi.h>
+namespace {
+std::atomic<bool> gIosFrameProcessing{false};
+}
+
+#if __has_include(<React/RCTBridgeModule.h>)
+#import <React/RCTBridgeModule.h>
+#import <React/RCTBridge+Private.h>
 
 @interface RCT_EXTERN_MODULE(OcrProcessorModule, NSObject)
 RCT_EXTERN_METHOD(recognizeFile:(NSString *)filePath
@@ -41,8 +85,9 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(installOpenCvJsi) {
     if (!cxxBridge || !cxxBridge.runtime) {
         return @NO;
     }
-    auto* jsiRuntime = static_cast<facebook::jsi::Runtime*>(cxxBridge.runtime);
-    skan::SkanOpenCvJsiModule::install(*jsiRuntime);
+    skan::installIosOpenCvJsi(
+        static_cast<facebook::jsi::Runtime*>(cxxBridge.runtime)
+    );
     return @YES;
 }
 
@@ -52,10 +97,7 @@ RCT_EXPORT_METHOD(consumeSharedImages:(RCTPromiseResolveBlock)resolve
 }
 
 @end
-
-namespace {
-std::atomic<bool> gIosFrameProcessing{false};
-}
+#endif
 
 @interface SkanVisionFrameProcessorIos : FrameProcessorPlugin
 @end
@@ -91,15 +133,12 @@ std::atomic<bool> gIosFrameProcessing{false};
     const int height = static_cast<int>(CVPixelBufferGetHeightOfPlane(pixelBuffer, 0));
     const int bytesPerRow = static_cast<int>(CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0));
 
-    skan::EdgeDetectionResult result{};
-    if (yPlaneAddress && width > 0 && height > 0) {
-        result = skan::EdgeDetector::detectFromYPlane(
-            yPlaneAddress,
-            width,
-            height,
-            bytesPerRow
-        );
-    }
+    const skan::EdgeDetectionResult result = skan::runIosFrameEdgeDetection(
+        yPlaneAddress,
+        width,
+        height,
+        bytesPerRow
+    );
 
     CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
     gIosFrameProcessing.store(false, std::memory_order_release);
@@ -125,4 +164,5 @@ std::atomic<bool> gIosFrameProcessing{false};
 VISION_EXPORT_FRAME_PROCESSOR(SkanVisionFrameProcessorIos, detectDocumentEdges)
 
 @end
+#endif
 
