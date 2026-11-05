@@ -203,4 +203,3 @@ std::array<cv::Point2f, 4> PointSorter::toCvArray(const QuadCorners& quad) {
 #endif
 
 }
-
