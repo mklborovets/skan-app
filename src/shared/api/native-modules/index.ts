@@ -22,3 +22,13 @@ export type {
   OcrRecognitionResult,
   OcrTextBlock,
 } from './mlKitOcrBridge';
+
+export {
+  consumeSharedIncomingImages,
+  exportPdfToGoogleDriveNative,
+  runMlKitDocumentScannerBenchmark,
+} from './bonusIntegrationsBridge';
+export type {
+  GoogleDriveSyncResponse,
+  ScannerBenchmarkMetrics,
+} from './bonusIntegrationsBridge';

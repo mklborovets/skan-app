@@ -10,12 +10,16 @@ import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
+import com.mrousavy.camera.frameprocessors.FrameProcessorPluginRegistry
+import com.skan.frameprocessor.SkanEdgeFrameProcessorPlugin
 
 class MainApplication : Application(), ReactApplication {
     override val reactNativeHost: ReactNativeHost =
         object : DefaultReactNativeHost(this) {
             override fun getPackages(): List<ReactPackage> =
-                PackageList(this).packages
+                PackageList(this).packages.apply {
+                    add(SkanNativePackage())
+                }
 
             override fun getJSMainModuleName(): String = "index"
 
@@ -31,9 +35,11 @@ class MainApplication : Application(), ReactApplication {
     override fun onCreate() {
         super.onCreate()
         SoLoader.init(this, false)
+        FrameProcessorPluginRegistry.addFrameProcessorPlugin("detectDocumentEdges") { proxy, options ->
+            SkanEdgeFrameProcessorPlugin(proxy, options)
+        }
         if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
             load()
         }
     }
 }
-

@@ -1,34 +1,25 @@
-import React, {useCallback, useState} from 'react';
-import {useScanSessionStore} from '@entities/scanned-page';
-import {
-  ExportPdfButton,
-  usePdfExportPipeline,
-} from '@features/export-searchable-pdf';
+import React from 'react';
+import {ExportPdfButton} from '@features/export-searchable-pdf';
 import {CameraScanPage} from '@pages/camera-scan-page';
 import {CropEditPage} from '@pages/crop-edit-page';
 import {DocumentReviewPage} from '@pages/document-review-page';
 import {LibraryPage} from '@pages/library-page';
 import {PdfPreviewPage} from '@pages/pdf-preview-page';
-import {NavigationRouteState} from './types';
+import {PrimaryButton} from '@shared/ui/button/PrimaryButton';
+import {Row} from '@shared/ui/layout/Row';
+import {useRootNavigationController} from './useRootNavigationController';
 
 export const RootNavigator: React.FC = () => {
-  const [route, setRoute] = useState<NavigationRouteState>({
-    screen: 'Library',
-  });
-
-  const sessionPages = useScanSessionStore(state => state.pages);
-  const {isExporting, progressText, exportCurrentSessionToPdf} =
-    usePdfExportPipeline();
-
-  const handleExportSession = useCallback(async () => {
-    const savedDoc = await exportCurrentSessionToPdf();
-    if (savedDoc) {
-      setRoute({
-        screen: 'PdfPreview',
-        activeDocumentId: savedDoc.id,
-      });
-    }
-  }, [exportCurrentSessionToPdf]);
+  const {
+    route,
+    setRoute,
+    sessionPages,
+    isExporting,
+    progressText,
+    handleExportSession,
+    handleDriveExport,
+    handleRunBenchmark,
+  } = useRootNavigationController();
 
   if (route.screen === 'CameraScan') {
     return (
@@ -82,11 +73,32 @@ export const RootNavigator: React.FC = () => {
   }
 
   if (route.screen === 'PdfPreview' && route.activeDocumentId) {
+    const docId = route.activeDocumentId;
     return (
       <PdfPreviewPage
-        documentId={route.activeDocumentId}
+        documentId={docId}
         onEditDocument={() => setRoute({screen: 'DocumentReview'})}
         onBackToLibrary={() => setRoute({screen: 'Library'})}
+        extraActionsSlot={
+          <Row justify="space-between">
+            <PrimaryButton
+              label="Google Drive"
+              icon="cloudUpload"
+              variant="secondary"
+              onPress={() => {
+                void handleDriveExport(docId);
+              }}
+            />
+            <PrimaryButton
+              label="ML Kit Benchmark"
+              icon="scanLine"
+              variant="secondary"
+              onPress={() => {
+                void handleRunBenchmark(docId);
+              }}
+            />
+          </Row>
+        }
       />
     );
   }
