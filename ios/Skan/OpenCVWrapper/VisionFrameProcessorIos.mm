@@ -1,11 +1,57 @@
 #import <Foundation/Foundation.h>
 #import <CoreVideo/CoreVideo.h>
+#import <React/RCTBridge+Private.h>
+#import <React/RCTBridgeModule.h>
 #import <VisionCamera/FrameProcessorPlugin.h>
 #import <VisionCamera/FrameProcessorPluginRegistry.h>
 #import <VisionCamera/Frame.h>
 
 #include "EdgeDetector.hpp"
+#include "SkanOpenCvJsiModule.hpp"
 #include <atomic>
+#include <jsi/jsi.h>
+
+@interface RCT_EXTERN_MODULE(OcrProcessorModule, NSObject)
+RCT_EXTERN_METHOD(recognizeFile:(NSString *)filePath
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+@end
+
+@interface RCT_EXTERN_MODULE(PdfGeneratorModule, NSObject)
+RCT_EXTERN_METHOD(generateSearchablePdf:(NSDictionary *)options
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+@end
+
+@interface BonusIntegrationsModule : NSObject <RCTBridgeModule>
+@end
+
+@implementation BonusIntegrationsModule
+
+@synthesize bridge = _bridge;
+
+RCT_EXPORT_MODULE(BonusIntegrationsModule)
+
++ (BOOL)requiresMainQueueSetup {
+    return NO;
+}
+
+RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(installOpenCvJsi) {
+    RCTCxxBridge* cxxBridge = (RCTCxxBridge*)self.bridge;
+    if (!cxxBridge || !cxxBridge.runtime) {
+        return @NO;
+    }
+    auto* jsiRuntime = static_cast<facebook::jsi::Runtime*>(cxxBridge.runtime);
+    skan::SkanOpenCvJsiModule::install(*jsiRuntime);
+    return @YES;
+}
+
+RCT_EXPORT_METHOD(consumeSharedImages:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+    resolve(@[]);
+}
+
+@end
 
 namespace {
 std::atomic<bool> gIosFrameProcessing{false};

@@ -60,24 +60,43 @@ export const useEdgeDetectionWorklet = ({
         return;
       }
 
-      const frameWidth = raw.frameWidth ?? frame.width;
-      const frameHeight = raw.frameHeight ?? frame.height;
+      const rawWidth = raw.frameWidth ?? frame.width;
+      const rawHeight = raw.frameHeight ?? frame.height;
       const detected = Boolean(raw.detected);
+      const orientation = frame.orientation;
+      const isLandscapeBuffer =
+        rawWidth > rawHeight &&
+        (orientation === 'landscape-right' || orientation === 'landscape-left');
+
+      const tl = {x: raw.tlX ?? 0, y: raw.tlY ?? 0};
+      const tr = {x: raw.trX ?? rawWidth, y: raw.trY ?? 0};
+      const br = {x: raw.brX ?? rawWidth, y: raw.brY ?? rawHeight};
+      const bl = {x: raw.blX ?? 0, y: raw.blY ?? rawHeight};
+
+      const quad = !isLandscapeBuffer
+        ? {topLeft: tl, topRight: tr, bottomRight: br, bottomLeft: bl}
+        : orientation === 'landscape-right'
+          ? {
+              topLeft: {x: rawHeight - bl.y, y: bl.x},
+              topRight: {x: rawHeight - tl.y, y: tl.x},
+              bottomRight: {x: rawHeight - tr.y, y: tr.x},
+              bottomLeft: {x: rawHeight - br.y, y: br.x},
+            }
+          : {
+              topLeft: {x: tr.y, y: rawWidth - tr.x},
+              topRight: {x: br.y, y: rawWidth - br.x},
+              bottomRight: {x: bl.y, y: rawWidth - bl.x},
+              bottomLeft: {x: tl.y, y: rawWidth - tl.x},
+            };
 
       const detectionFrame: QuadDetectionFrame = {
         detected,
         confidence: raw.confidence ?? 0,
         areaRatio: raw.areaRatio ?? 0,
-        sourceSize: {
-          width: frameWidth,
-          height: frameHeight,
-        },
-        quad: {
-          topLeft: {x: raw.tlX ?? 0, y: raw.tlY ?? 0},
-          topRight: {x: raw.trX ?? frameWidth, y: raw.trY ?? 0},
-          bottomRight: {x: raw.brX ?? frameWidth, y: raw.brY ?? frameHeight},
-          bottomLeft: {x: raw.blX ?? 0, y: raw.blY ?? frameHeight},
-        },
+        sourceSize: isLandscapeBuffer
+          ? {width: rawHeight, height: rawWidth}
+          : {width: rawWidth, height: rawHeight},
+        quad,
       };
 
       notifyDetectionOnJs(detectionFrame);

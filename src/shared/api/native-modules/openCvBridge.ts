@@ -1,3 +1,4 @@
+import {NativeModules} from 'react-native';
 import RNFS from 'react-native-fs';
 import {
   ensureFileUriPrefix,
@@ -53,8 +54,31 @@ interface SkanJsiGlobal {
   ) => NativeWarpResponse;
 }
 
-const getJsiBindings = (): SkanJsiGlobal =>
-  globalThis as unknown as SkanJsiGlobal;
+interface NativeJsiInstallerSpec {
+  installOpenCvJsi?: () => boolean;
+}
+
+let jsiInstallAttempted = false;
+
+const getJsiBindings = (): SkanJsiGlobal => {
+  const globalObj = globalThis as unknown as SkanJsiGlobal;
+  if (
+    !jsiInstallAttempted &&
+    typeof globalObj.__skanDetectStaticEdges !== 'function'
+  ) {
+    jsiInstallAttempted = true;
+    const installer = NativeModules.BonusIntegrationsModule as
+      | NativeJsiInstallerSpec
+      | undefined;
+    installer?.installOpenCvJsi?.();
+  }
+  return globalObj;
+};
+
+const yieldToUiFrame = (): Promise<void> =>
+  new Promise(resolve => {
+    setTimeout(resolve, 0);
+  });
 
 const createDefaultFallbackQuad = (
   width: number,
@@ -77,6 +101,7 @@ export const detectStaticEdges = async (
   const jsi = getJsiBindings();
 
   if (typeof jsi.__skanDetectStaticEdges === 'function') {
+    await yieldToUiFrame();
     return jsi.__skanDetectStaticEdges(cleanPath);
   }
 
@@ -103,6 +128,7 @@ export const warpAndFilterImage = async (params: {
   const jsi = getJsiBindings();
 
   if (typeof jsi.__skanWarpAndFilterImage === 'function') {
+    await yieldToUiFrame();
     const result = jsi.__skanWarpAndFilterImage(
       cleanInputPath,
       cleanOutputPath,

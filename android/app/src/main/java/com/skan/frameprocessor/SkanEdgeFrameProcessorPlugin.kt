@@ -15,6 +15,15 @@ class SkanEdgeFrameProcessorPlugin(
         init {
             System.loadLibrary("skan_opencv")
         }
+
+        @JvmStatic
+        external fun nativeInstallJsiStatic(jsiRuntimePtr: Long)
+
+        fun installJsiRuntime(jsiRuntimePtr: Long) {
+            if (jsiRuntimePtr != 0L) {
+                nativeInstallJsiStatic(jsiRuntimePtr)
+            }
+        }
     }
 
     private external fun nativeDetectEdgesFromYPlane(

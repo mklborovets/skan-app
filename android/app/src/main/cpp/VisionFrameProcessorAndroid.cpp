@@ -110,3 +110,17 @@ Java_com_skan_frameprocessor_SkanEdgeFrameProcessorPlugin_nativeInstallJsi(
     auto* runtime = reinterpret_cast<facebook::jsi::Runtime*>(jsiRuntimePtr);
     skan::SkanOpenCvJsiModule::install(*runtime);
 }
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_skan_frameprocessor_SkanEdgeFrameProcessorPlugin_nativeInstallJsiStatic(
+    JNIEnv*,
+    jobject,
+    jlong jsiRuntimePtr
+) {
+    if (jsiRuntimePtr == 0) {
+        return;
+    }
+    auto* runtime = reinterpret_cast<facebook::jsi::Runtime*>(jsiRuntimePtr);
+    skan::SkanOpenCvJsiModule::install(*runtime);
+}
+

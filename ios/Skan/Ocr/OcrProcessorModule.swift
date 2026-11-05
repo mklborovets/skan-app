@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import ImageIO
 import Vision
 import React
 
@@ -9,6 +10,20 @@ class OcrProcessorModule: NSObject {
     @objc
     static func requiresMainQueueSetup() -> Bool {
         return false
+    }
+
+    private static func cgOrientation(from uiOrientation: UIImage.Orientation) -> CGImagePropertyOrientation {
+        switch uiOrientation {
+        case .up: return .up
+        case .down: return .down
+        case .left: return .left
+        case .right: return .right
+        case .upMirrored: return .upMirrored
+        case .downMirrored: return .downMirrored
+        case .leftMirrored: return .leftMirrored
+        case .rightMirrored: return .rightMirrored
+        @unknown default: return .up
+        }
     }
 
     @objc(recognizeFile:resolver:rejecter:)
@@ -24,8 +39,11 @@ class OcrProcessorModule: NSObject {
                 return
             }
 
-            let imgWidth = max(1.0, CGFloat(cgImage.width))
-            let imgHeight = max(1.0, CGFloat(cgImage.height))
+            let orientedWidth = image.size.width * image.scale
+            let orientedHeight = image.size.height * image.scale
+            let imgWidth = max(1.0, orientedWidth > 0 ? orientedWidth : CGFloat(cgImage.width))
+            let imgHeight = max(1.0, orientedHeight > 0 ? orientedHeight : CGFloat(cgImage.height))
+            let orientation = Self.cgOrientation(from: image.imageOrientation)
 
             var recognizedLines: [String] = []
             var blocksOutput: [[String: Any]] = []
@@ -78,7 +96,11 @@ class OcrProcessorModule: NSObject {
                 }
             }
 
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            let handler = VNImageRequestHandler(
+                cgImage: cgImage,
+                orientation: orientation,
+                options: [:]
+            )
             do {
                 try handler.perform([textRequest, barcodeRequest])
                 resolver([

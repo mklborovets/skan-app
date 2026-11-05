@@ -33,13 +33,15 @@ class OcrProcessorModule(
                 inJustDecodeBounds = true
             }
             BitmapFactory.decodeFile(cleanFile.absolutePath, boundsOpts)
-            val imgWidth = max(1f, boundsOpts.outWidth.toFloat())
-            val imgHeight = max(1f, boundsOpts.outHeight.toFloat())
-
             val inputImage = InputImage.fromFilePath(
                 reactApplicationContext,
                 Uri.fromFile(cleanFile)
             )
+            val isRotated90 = inputImage.rotationDegrees == 90 || inputImage.rotationDegrees == 270
+            val rawWidth = if (inputImage.width > 0) inputImage.width else boundsOpts.outWidth
+            val rawHeight = if (inputImage.height > 0) inputImage.height else boundsOpts.outHeight
+            val imgWidth = max(1f, (if (isRotated90) rawHeight else rawWidth).toFloat())
+            val imgHeight = max(1f, (if (isRotated90) rawWidth else rawHeight).toFloat())
 
             val textRecognizer = TextRecognition.getClient(
                 TextRecognizerOptions.DEFAULT_OPTIONS
@@ -48,32 +50,32 @@ class OcrProcessorModule(
 
             textRecognizer.process(inputImage)
                 .addOnSuccessListener { visionText ->
+                    val blocksArray = Arguments.createArray()
+                    for (block in visionText.textBlocks) {
+                        val rect = block.boundingBox ?: continue
+                        val blockMap = Arguments.createMap()
+                        blockMap.putString("text", block.text)
+                        blockMap.putDouble("confidence", 0.92)
+
+                        val rawBox = Arguments.createMap().apply {
+                            putDouble("x", rect.left.toDouble())
+                            putDouble("y", rect.top.toDouble())
+                            putDouble("width", rect.width().toDouble())
+                            putDouble("height", rect.height().toDouble())
+                        }
+                        val normBox = Arguments.createMap().apply {
+                            putDouble("x", (rect.left / imgWidth).toDouble())
+                            putDouble("y", (rect.top / imgHeight).toDouble())
+                            putDouble("width", (rect.width() / imgWidth).toDouble())
+                            putDouble("height", (rect.height() / imgHeight).toDouble())
+                        }
+                        blockMap.putMap("boundingBox", rawBox)
+                        blockMap.putMap("normalizedBox", normBox)
+                        blocksArray.pushMap(blockMap)
+                    }
+
                     barcodeScanner.process(inputImage)
                         .addOnSuccessListener { barcodes ->
-                            val blocksArray = Arguments.createArray()
-                            for (block in visionText.textBlocks) {
-                                val rect = block.boundingBox ?: continue
-                                val blockMap = Arguments.createMap()
-                                blockMap.putString("text", block.text)
-                                blockMap.putDouble("confidence", 0.92)
-
-                                val rawBox = Arguments.createMap().apply {
-                                    putDouble("x", rect.left.toDouble())
-                                    putDouble("y", rect.top.toDouble())
-                                    putDouble("width", rect.width().toDouble())
-                                    putDouble("height", rect.height().toDouble())
-                                }
-                                val normBox = Arguments.createMap().apply {
-                                    putDouble("x", (rect.left / imgWidth).toDouble())
-                                    putDouble("y", (rect.top / imgHeight).toDouble())
-                                    putDouble("width", (rect.width() / imgWidth).toDouble())
-                                    putDouble("height", (rect.height() / imgHeight).toDouble())
-                                }
-                                blockMap.putMap("boundingBox", rawBox)
-                                blockMap.putMap("normalizedBox", normBox)
-                                blocksArray.pushMap(blockMap)
-                            }
-
                             val barcodeArray = Arguments.createArray()
                             for (barcode in barcodes) {
                                 val rawVal = barcode.rawValue
@@ -95,7 +97,7 @@ class OcrProcessorModule(
                             val fallbackBarcodes = Arguments.createArray()
                             val result = Arguments.createMap().apply {
                                 putString("fullText", visionText.text)
-                                putArray("blocks", Arguments.createArray())
+                                putArray("blocks", blocksArray)
                                 putArray("detectedBarcodes", fallbackBarcodes)
                             }
                             textRecognizer.close()
