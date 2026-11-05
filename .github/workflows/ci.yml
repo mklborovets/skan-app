@@ -1,0 +1,71 @@
+name: SKAN CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint-and-typecheck:
+    name: TypeScript & ESLint Strict Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Run TypeScript strict typecheck
+        run: yarn typecheck
+
+      - name: Run ESLint strict rules (FSD & max-lines)
+        run: yarn lint
+
+      - name: Verify C++17 OpenCV Core Syntax
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -pedantic \
+            -Icpp/include -Icpp/jsi -Inode_modules/react-native/ReactCommon/jsi \
+            -fsyntax-only cpp/src/*.cpp cpp/jsi/*.cpp
+
+  android-debug-build:
+    name: Build Android Debug APK (NDK + OpenCV)
+    needs: lint-and-typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install JS dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Cache Gradle & Android NDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+
+      - name: Assemble Debug APK
+        working-directory: android
+        run: gradle assembleDebug --no-daemon
