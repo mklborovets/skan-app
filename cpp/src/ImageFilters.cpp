@@ -1,12 +1,13 @@
 #include "ImageFilters.hpp"
 
-#include <algorithm>
-#include <fstream>
-#include <vector>
+#include "PerspectiveWarper.hpp"
+#include "PointSorter.hpp"
 
 #if SKAN_HAS_OPENCV
+#include <algorithm>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+#include <vector>
 #endif
 
 namespace skan {
@@ -247,3 +248,4 @@ ProcessedImageOutput ImageFilters::warpAndFilterToFile(
 }
 
 }
+

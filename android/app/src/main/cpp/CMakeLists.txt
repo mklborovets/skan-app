@@ -54,3 +54,4 @@ target_compile_options(skan_opencv PRIVATE
     -Wall
     -Wextra
 )
+

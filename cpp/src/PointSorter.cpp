@@ -2,9 +2,13 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
+#include <cstddef>
 
 namespace skan {
+
+std::array<Point2f, 4> QuadCorners::toArray() const {
+    return {topLeft, topRight, bottomRight, bottomLeft};
+}
 
 namespace {
 
@@ -194,3 +198,4 @@ std::array<cv::Point2f, 4> PointSorter::toCvArray(const QuadCorners& quad) {
 #endif
 
 }
+

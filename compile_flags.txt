@@ -1,0 +1,11 @@
+-std=c++17
+-xc++
+-Icpp/include
+-Icpp/jsi
+-I../include
+-I../jsi
+-Inode_modules/react-native/ReactCommon/jsi
+-I../../node_modules/react-native/ReactCommon/jsi
+-I../../../../../cpp/include
+-I../../../../../cpp/jsi
+-I../../../../../node_modules/react-native/ReactCommon/jsi

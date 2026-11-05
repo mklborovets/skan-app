@@ -1,13 +1,15 @@
 #include "EdgeDetector.hpp"
 
+#include "PointSorter.hpp"
 #include <algorithm>
 #include <array>
-#include <cmath>
-#include <vector>
+#include <cstddef>
 
 #if SKAN_HAS_OPENCV
+#include <cmath>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+#include <vector>
 #endif
 
 namespace skan {
@@ -291,3 +293,4 @@ EdgeDetectionResult EdgeDetector::detectFromImageFile(
 }
 
 }
+

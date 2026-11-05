@@ -1,10 +1,27 @@
 #include "EdgeDetector.hpp"
+#include "PointSorter.hpp"
 #include "SkanOpenCvJsiModule.hpp"
 
 #include <atomic>
 #include <cstdint>
-#include <jni.h>
 #include <jsi/jsi.h>
+
+#if __has_include(<jni.h>)
+#include <jni.h>
+#else
+#define JNIEXPORT
+#define JNICALL
+using jint = int32_t;
+using jlong = int64_t;
+using jfloat = float;
+using jobject = void*;
+using jfloatArray = float*;
+struct JNIEnv {
+    void* GetDirectBufferAddress(jobject buf) { return buf; }
+    jfloatArray NewFloatArray(int) { return nullptr; }
+    void SetFloatArrayRegion(jfloatArray, int, int, const jfloat*) {}
+};
+#endif
 
 namespace {
 

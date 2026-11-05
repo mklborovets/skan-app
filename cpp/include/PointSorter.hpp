@@ -1,10 +1,10 @@
 #pragma once
 
 #include <array>
-#include <vector>
 
 #if __has_include(<opencv2/core.hpp>)
 #include <opencv2/core.hpp>
+#include <vector>
 #define SKAN_HAS_OPENCV 1
 #else
 #define SKAN_HAS_OPENCV 0
@@ -23,9 +23,7 @@ struct QuadCorners {
     Point2f bottomRight;
     Point2f bottomLeft;
 
-    std::array<Point2f, 4> toArray() const {
-        return {topLeft, topRight, bottomRight, bottomLeft};
-    }
+    std::array<Point2f, 4> toArray() const;
 };
 
 struct TargetDimensions {

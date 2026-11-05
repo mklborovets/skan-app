@@ -1,12 +1,13 @@
 #include "PerspectiveWarper.hpp"
 
-#include <array>
+#include "PointSorter.hpp"
 #include <fstream>
-#include <vector>
 
 #if SKAN_HAS_OPENCV
+#include <array>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+#include <vector>
 #endif
 
 namespace skan {
