@@ -15,6 +15,7 @@ import {
   recognizeTextWithMlKit,
 } from '@shared/api/native-modules';
 import {SCAN_CONSTANTS} from '@shared/config/scanConstants';
+import {classifyDocumentByGeometryAndOcr} from '@shared/lib/classification/documentClassifier';
 import {
   buildExportedPdfFilePath,
   ensureAppStorageDirectories,
@@ -64,6 +65,8 @@ export const usePdfExportPipeline = (): PdfExportPipelineState => {
         await saveDocumentRecord(initialDoc);
 
         const pdfPagesInput: PdfPageInput[] = [];
+        const collectedOcrTexts: string[] = [];
+        const collectedBarcodes: string[] = [];
 
         for (let i = 0; i < pages.length; i += 1) {
           const page = pages[i];
@@ -72,6 +75,10 @@ export const usePdfExportPipeline = (): PdfExportPipelineState => {
           }
           setProgressText(`OCR & Indexing Page ${i + 1} / ${pages.length}`);
           const ocrResult = await recognizeTextWithMlKit(page.processedUri);
+          if (ocrResult.fullText) {
+            collectedOcrTexts.push(ocrResult.fullText);
+          }
+          collectedBarcodes.push(...ocrResult.detectedBarcodes);
           const updatedPage: ScannedPage = {
             ...page,
             pageIndex: i,
@@ -93,6 +100,16 @@ export const usePdfExportPipeline = (): PdfExportPipelineState => {
           });
         }
 
+        const firstPage = pages[0];
+        const autoClassified = firstPage
+          ? classifyDocumentByGeometryAndOcr({
+              width: firstPage.width,
+              height: firstPage.height,
+              ocrText: collectedOcrTexts.join('\n'),
+              barcodes: collectedBarcodes,
+            }).docType
+          : docTypeOverride;
+
         setProgressText(`Assembling ${pages.length}-page A4 PDF...`);
         const pdfResponse = await generateSearchablePdfOnDevice({
           outputFilePath: pdfOutputPath,
@@ -103,6 +120,8 @@ export const usePdfExportPipeline = (): PdfExportPipelineState => {
 
         const completedDoc: ScannedDocument = {
           ...initialDoc,
+          docType:
+            docTypeOverride !== 'standard' ? docTypeOverride : autoClassified,
           pdfPath: pdfResponse.pdfUri,
           updatedAt: Date.now(),
         };
