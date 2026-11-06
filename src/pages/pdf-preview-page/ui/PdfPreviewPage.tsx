@@ -80,6 +80,16 @@ export const PdfPreviewPage: React.FC<PdfPreviewPageProps> = ({
         renderItem={renderPageItem}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.emptyCard}>
+            <AppText variant="bodyStrong" align="center">
+              {controller.document?.title ?? 'PDF Document'}
+            </AppText>
+            <AppText variant="caption" color="textSecondary" align="center">
+              Exported PDF file is saved on this device. You can share or view it using the button below.
+            </AppText>
+          </View>
+        }
       />
 
       <View style={styles.footer}>
@@ -143,6 +153,16 @@ const styles = StyleSheet.create({
   },
   ocrScroll: {
     maxHeight: 320,
+  },
+  emptyCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    padding: theme.spacing.lg,
+    gap: theme.spacing.sm,
+    alignItems: 'center',
+    marginVertical: theme.spacing.lg,
   },
 });
 

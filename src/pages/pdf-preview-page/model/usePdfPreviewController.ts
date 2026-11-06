@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from 'react';
-import {Share} from 'react-native';
+import {Platform, Share} from 'react-native';
 import {
   documentRepository,
   ScannedDocument,
@@ -57,11 +57,11 @@ export const usePdfPreviewController = ({
     if (!document?.pdfPath) {
       return;
     }
-    await Share.share({
-      title: document.title,
-      url: document.pdfPath,
-      message: `${document.title} (${document.pdfPath})`,
-    });
+    await Share.share(
+      Platform.OS === 'ios'
+        ? {url: document.pdfPath}
+        : {title: document.title, url: document.pdfPath},
+    );
   }, [document]);
 
   const combinedOcrText = pages

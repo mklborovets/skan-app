@@ -1,5 +1,5 @@
 import {useCallback, useEffect} from 'react';
-import {Share} from 'react-native';
+import {Platform, Share} from 'react-native';
 import {ScannedDocument, useDocumentStore} from '@entities/document';
 import {pageRepository, useScanSessionStore} from '@entities/scanned-page';
 import {
@@ -69,11 +69,11 @@ export const useDocumentLibraryController = ({
     if (!doc.pdfPath) {
       return;
     }
-    await Share.share({
-      title: doc.title,
-      url: doc.pdfPath,
-      message: `${doc.title} (${doc.pdfPath})`,
-    });
+    await Share.share(
+      Platform.OS === 'ios'
+        ? {url: doc.pdfPath}
+        : {title: doc.title, url: doc.pdfPath},
+    );
   }, []);
 
   const onDeleteDocument = useCallback(

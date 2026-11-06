@@ -146,6 +146,7 @@ export const useRootNavigationController = () => {
     async (documentId: string) => {
       const doc = await documentRepository.getDocumentById(documentId);
       if (!doc?.pdfPath) {
+        Alert.alert('Google Drive', 'PDF document has not been generated yet.');
         return;
       }
       const syncRes = await exportPdfToGoogleDriveNative(
@@ -155,6 +156,12 @@ export const useRootNavigationController = () => {
       if (syncRes.synced) {
         await documentRepository.markCloudSynced(documentId, syncRes.syncedAt);
         await refreshDocuments();
+        Alert.alert(
+          'Google Drive',
+          `PDF "${doc.title}" was successfully synced to Google Drive cloud storage.`,
+        );
+      } else {
+        Alert.alert('Google Drive', 'Sync failed. Please try again.');
       }
     },
     [refreshDocuments],
