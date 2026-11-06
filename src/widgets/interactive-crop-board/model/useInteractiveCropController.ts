@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Image, LayoutChangeEvent} from 'react-native';
 import {
   createDefaultScanQuad,
@@ -58,6 +58,7 @@ export const useInteractiveCropController = ({
     null,
   );
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const hasInitializedRef = useRef<boolean>(false);
 
   const sourceSize: FrameDimensions = useMemo(() => {
     if (rawImageSize && rawImageSize.width > 0 && rawImageSize.height > 0) {
@@ -106,11 +107,7 @@ export const useInteractiveCropController = ({
       page.rawUri,
       (width, height) => {
         if (active && width > 0 && height > 0) {
-          const resolved = {width, height};
-          setRawImageSize(resolved);
-          gestures.setQuad(
-            scaleQuadBetweenDimensions(page.corners, resolved, boardSize),
-          );
+          setRawImageSize({width, height});
         }
       },
       () => undefined,
@@ -118,27 +115,30 @@ export const useInteractiveCropController = ({
     return () => {
       active = false;
     };
-  }, [boardSize, gestures, page]);
+  }, [page?.rawUri]);
 
-  const onBoardLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      const {width, height} = event.nativeEvent.layout;
-      if (width <= 0 || height <= 0) {
-        return;
-      }
-      const nextBoard = {width, height};
-      setBoardSize(nextBoard);
-      if (page) {
-        const scaled = scaleQuadBetweenDimensions(
-          page.corners,
-          sourceSize,
-          nextBoard,
-        );
-        gestures.setQuad(scaled);
-      }
-    },
-    [gestures, page, sourceSize],
-  );
+  const onBoardLayout = useCallback((event: LayoutChangeEvent) => {
+    const {width, height} = event.nativeEvent.layout;
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    setBoardSize({width, height});
+  }, []);
+
+  useEffect(() => {
+    if (!page || boardSize.width <= 0 || boardSize.height <= 0) {
+      return;
+    }
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      const initialQuad = scaleQuadBetweenDimensions(
+        page.corners,
+        sourceSize,
+        boardSize,
+      );
+      gestures.setQuad(initialQuad);
+    }
+  }, [boardSize, gestures, page, sourceSize]);
 
   const onAutoDetectCorners = useCallback(async () => {
     if (!page) {
@@ -154,6 +154,8 @@ export const useInteractiveCropController = ({
           boardSize,
         );
         gestures.setQuad(scaled);
+      } else {
+        gestures.resetToFullBounds();
       }
     } finally {
       setIsProcessing(false);
@@ -214,6 +216,8 @@ export const useInteractiveCropController = ({
       }
 
       onApplyCompleted();
+    } catch (cropErr) {
+      console.warn('[InteractiveCrop] Warp failed:', cropErr);
     } finally {
       setIsProcessing(false);
     }

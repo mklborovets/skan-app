@@ -52,7 +52,7 @@ export const LiveScannerViewport: React.FC<LiveScannerViewportProps> = ({
           ref={controller.cameraRef}
           style={StyleSheet.absoluteFill}
           device={controller.device}
-          isActive={!controller.isCapturing}
+          isActive={true}
           photo
           pixelFormat="yuv"
           torch={controller.torchOn ? 'on' : 'off'}

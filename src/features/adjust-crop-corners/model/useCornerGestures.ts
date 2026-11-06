@@ -32,11 +32,20 @@ export const useCornerGestures = ({
   boardSize,
   onQuadChanged,
 }: UseCornerGesturesParams): CornerGesturesState => {
-  const [quad, setQuad] = useState<ScanQuad>(initialQuad);
+  const [quad, setQuadState] = useState<ScanQuad>(initialQuad);
   const [activeCorner, setActiveCorner] = useState<CornerKey | null>(null);
   const startPointRef = useRef<Point2D>({x: 0, y: 0});
   const latestQuadRef = useRef<ScanQuad>(initialQuad);
   latestQuadRef.current = quad;
+
+  const setQuad = useCallback(
+    (newQuad: ScanQuad) => {
+      latestQuadRef.current = newQuad;
+      setQuadState(newQuad);
+      onQuadChanged?.(newQuad);
+    },
+    [onQuadChanged],
+  );
 
   const updateCorner = useCallback(
     (cornerKey: CornerKey, candidate: Point2D) => {

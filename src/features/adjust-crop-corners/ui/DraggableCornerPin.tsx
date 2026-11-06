@@ -19,6 +19,7 @@ export const DraggableCornerPin: React.FC<DraggableCornerPinProps> = ({
   return (
     <View
       {...panHandlers}
+      hitSlop={{top: 25, bottom: 25, left: 25, right: 25}}
       style={[
         styles.pinOuter,
         {

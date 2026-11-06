@@ -14,7 +14,11 @@ import {
   scaleQuadBetweenDimensions,
   ScanQuad,
 } from '@entities/scan-quad';
-import {ScannedPage, useScanSessionStore} from '@entities/scanned-page';
+import {
+  pageRepository,
+  ScannedPage,
+  useScanSessionStore,
+} from '@entities/scanned-page';
 import {useStabilityTracker} from '@features/auto-capture-trigger';
 import {
   useEdgeDetectionWorklet,
@@ -163,13 +167,20 @@ export const useLiveScannerController = ({
           corners: detectedCorners,
           ocrText: '',
           ocrBlocks: [],
-          width: warped.width > 0 ? warped.width : photoWidth,
-          height: warped.height > 0 ? warped.height : photoHeight,
+          width: targetSize.width,
+          height: targetSize.height,
         };
 
         addCapturedPage(newPage);
+        try {
+          await pageRepository.upsertPage(newPage);
+        } catch (dbErr) {
+          console.warn('[LiveScanner] Failed to persist page to DB:', dbErr);
+        }
         resetSmoothing();
         onPhotoCaptured(pageId);
+      } catch (error) {
+        console.warn('[LiveScanner] Capture failed:', error);
       } finally {
         isCapturingRef.current = false;
         setIsCapturing(false);
