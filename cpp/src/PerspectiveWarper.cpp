@@ -26,7 +26,11 @@ bool isClockwiseOrderedQuad(const QuadCorners& quad) {
 
 QuadCorners ensureOrderedQuad(const QuadCorners& rawCorners) {
     if (isClockwiseOrderedQuad(rawCorners)) {
-        return rawCorners;
+        const float topDx = rawCorners.topRight.x - rawCorners.topLeft.x;
+        const float rightDy = rawCorners.bottomRight.y - rawCorners.topRight.y;
+        if (topDx > 0.0f && rightDy > 0.0f) {
+            return rawCorners;
+        }
     }
     return PointSorter::sortPoints(rawCorners.toArray());
 }

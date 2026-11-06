@@ -97,16 +97,13 @@ cv::Mat applyShadowFreeBinarization(const cv::Mat& bgrInput, const FilterOptions
     }
 
     cv::Mat dilated;
-    const cv::Mat dilateKernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
+    const cv::Mat dilateKernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(21, 21));
     cv::dilate(smallGray, dilated, dilateKernel);
 
-    const int scaledBlur = std::max(
-        3,
-        static_cast<int>(options.shadowBlurKernelSize * bgScale)
-    );
+    const int rawBlur = std::max(3, options.shadowBlurKernelSize);
     const int blurSize = std::min(
-        31,
-        (scaledBlur % 2 == 1) ? scaledBlur : scaledBlur + 1
+        51,
+        (rawBlur % 2 == 1) ? rawBlur : rawBlur + 1
     );
     cv::Mat smallBackground;
     cv::medianBlur(dilated, smallBackground, blurSize);
@@ -129,11 +126,12 @@ cv::Mat applyShadowFreeBinarization(const cv::Mat& bgrInput, const FilterOptions
     cv::GaussianBlur(illuminationNormalized, denoised, cv::Size(3, 3), 0);
     illuminationNormalized.release();
 
+    const int resolutionScaledBlock = std::max(options.adaptiveBlockSize, maxDim / 40);
     const int blockSize = std::max(
         3,
-        (options.adaptiveBlockSize % 2 == 1)
-            ? options.adaptiveBlockSize
-            : options.adaptiveBlockSize + 1
+        (resolutionScaledBlock % 2 == 1)
+            ? resolutionScaledBlock
+            : resolutionScaledBlock + 1
     );
 
     cv::Mat binary;
@@ -146,7 +144,13 @@ cv::Mat applyShadowFreeBinarization(const cv::Mat& bgrInput, const FilterOptions
         blockSize,
         options.adaptiveConstantC
     );
+
+    cv::Mat darkMask;
+    cv::threshold(denoised, darkMask, 145.0, 255.0, cv::THRESH_BINARY);
     denoised.release();
+
+    cv::bitwise_and(binary, darkMask, binary);
+    darkMask.release();
 
     return binary;
 }
