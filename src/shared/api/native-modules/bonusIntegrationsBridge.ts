@@ -1,4 +1,4 @@
-import {NativeModules} from 'react-native';
+import {NativeModules, Platform, Share} from 'react-native';
 import {
   ensureFileUriPrefix,
   stripFileUriPrefix,
@@ -19,6 +19,7 @@ export interface ScannerBenchmarkMetrics {
 
 interface NativeBonusIntegrationsSpec {
   consumeSharedImages(): Promise<string[]>;
+  sharePdfFile?(pdfFilePath: string, title: string): Promise<boolean>;
   exportToGoogleDrive(
     pdfFilePath: string,
     title: string,
@@ -35,6 +36,28 @@ export const consumeSharedIncomingImages = async (): Promise<string[]> => {
   }
   const paths = await mod.consumeSharedImages();
   return paths.map(p => ensureFileUriPrefix(p));
+};
+
+export const sharePdfFileNative = async (
+  pdfUriOrPath: string,
+  title: string,
+): Promise<void> => {
+  const cleanPath = stripFileUriPrefix(pdfUriOrPath);
+  const fileUri = ensureFileUriPrefix(cleanPath);
+  const mod = NativeModules.BonusIntegrationsModule as
+    | NativeBonusIntegrationsSpec
+    | undefined;
+
+  if (Platform.OS === 'android' && mod?.sharePdfFile) {
+    await mod.sharePdfFile(cleanPath, title);
+    return;
+  }
+
+  await Share.share(
+    Platform.OS === 'ios'
+      ? {url: fileUri, title}
+      : {title, message: fileUri, url: fileUri},
+  );
 };
 
 export const exportPdfToGoogleDriveNative = async (

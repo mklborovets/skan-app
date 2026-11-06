@@ -21,7 +21,7 @@ export const ExportPdfButton: React.FC<ExportPdfButtonProps> = ({
   return (
     <View style={styles.wrapper}>
       <PrimaryButton
-        label={`Save Searchable PDF (${pageCount} p.)`}
+        label={`Save Document (${pageCount} p.)`}
         icon="fileCheck"
         disabled={disabled || pageCount === 0}
         loading={isExporting}

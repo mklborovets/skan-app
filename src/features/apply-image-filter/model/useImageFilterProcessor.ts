@@ -72,13 +72,17 @@ export const useImageFilterProcessor = (): ImageFilterProcessorState => {
           height: nextHeight,
         });
 
-        await pageRepository.upsertPage({
-          ...targetPage,
-          processedUri: result.outputUri,
-          filterPreset: preset,
-          width: nextWidth,
-          height: nextHeight,
-        });
+        const activeTitle = useScanSessionStore.getState().activeDocumentTitle;
+        await pageRepository.upsertPage(
+          {
+            ...targetPage,
+            processedUri: result.outputUri,
+            filterPreset: preset,
+            width: nextWidth,
+            height: nextHeight,
+          },
+          activeTitle,
+        );
 
         if (
           previousProcessedUri !== targetPage.rawUri &&

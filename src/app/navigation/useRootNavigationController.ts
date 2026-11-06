@@ -11,11 +11,15 @@ import {
   consumeSharedIncomingImages,
   detectStaticEdges,
   exportPdfToGoogleDriveNative,
+  generateSearchablePdfOnDevice,
   runMlKitDocumentScannerBenchmark,
   warpAndFilterImage,
 } from '@shared/api/native-modules';
+import {SCAN_CONSTANTS} from '@shared/config/scanConstants';
 import {
+  buildExportedPdfFilePath,
   buildProcessedPageFilePath,
+  ensureAppStorageDirectories,
   ensureFileUriPrefix,
 } from '@shared/lib/file-system/pathResolver';
 import {NavigationRouteState} from './types';
@@ -57,26 +61,32 @@ export const useRootNavigationController = () => {
           corners: detection.corners,
           preset: 'bw_document',
         });
+        const finalProcessedUri =
+          warped.outputUri && warped.outputUri !== 'file://'
+            ? warped.outputUri
+            : rawUri;
         const newPage: ScannedPage = {
           id: pageId,
           documentId: sessionId,
           pageIndex: i,
           rawUri,
-          processedUri: warped.outputUri,
+          processedUri: finalProcessedUri,
           filterPreset: 'bw_document',
           corners: detection.corners,
           ocrText: '',
           ocrBlocks: [],
-          width: warped.width,
-          height: warped.height,
+          width: detection.frameWidth > 0 ? detection.frameWidth : 1080,
+          height: detection.frameHeight > 0 ? detection.frameHeight : 1440,
         };
         addCapturedPage(newPage);
+        await pageRepository.upsertPage(newPage, 'Shared Import');
       }
+      await refreshDocuments();
       setRoute({screen: 'DocumentReview'});
     } catch {
       return;
     }
-  }, [addCapturedPage, startNewSession]);
+  }, [addCapturedPage, refreshDocuments, startNewSession]);
 
   useEffect(() => {
     void ingestSharedImages();
@@ -145,12 +155,39 @@ export const useRootNavigationController = () => {
   const handleDriveExport = useCallback(
     async (documentId: string) => {
       const doc = await documentRepository.getDocumentById(documentId);
-      if (!doc?.pdfPath) {
+      if (!doc) {
+        return;
+      }
+      let pdfPath = doc.pdfPath;
+      if (!pdfPath) {
+        const docPages = await pageRepository.getPagesByDocumentId(documentId);
+        if (docPages.length > 0) {
+          await ensureAppStorageDirectories();
+          const outputFilePath = buildExportedPdfFilePath(doc.id);
+          const pdfRes = await generateSearchablePdfOnDevice({
+            outputFilePath,
+            title: doc.title,
+            jpegQuality: SCAN_CONSTANTS.PDF_JPEG_QUALITY,
+            pages: docPages.map(p => ({
+              pageId: p.id,
+              processedUri: p.processedUri,
+              ocrBlocks: p.ocrBlocks,
+            })),
+          });
+          pdfPath = pdfRes.pdfUri;
+          await documentRepository.upsertDocument({
+            ...doc,
+            pdfPath,
+            updatedAt: Date.now(),
+          });
+        }
+      }
+      if (!pdfPath) {
         Alert.alert('Google Drive', 'PDF document has not been generated yet.');
         return;
       }
       const syncRes = await exportPdfToGoogleDriveNative(
-        doc.pdfPath,
+        pdfPath,
         doc.title,
       );
       if (syncRes.synced) {

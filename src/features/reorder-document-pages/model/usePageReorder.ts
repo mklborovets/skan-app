@@ -72,12 +72,18 @@ export const usePageReorder = (): PageReorderController => {
         sessionState.sessionId,
       );
       if (existingDoc) {
-        await documentRepository.upsertDocument({
-          ...existingDoc,
-          pageCount: sessionState.pages.length,
-          updatedAt: Date.now(),
-        });
-        await useDocumentStore.getState().refreshDocuments();
+        if (sessionState.pages.length === 0 && !existingDoc.pdfPath) {
+          await useDocumentStore
+            .getState()
+            .deleteDocumentRecord(sessionState.sessionId);
+        } else {
+          await documentRepository.upsertDocument({
+            ...existingDoc,
+            pageCount: sessionState.pages.length,
+            updatedAt: Date.now(),
+          });
+          await useDocumentStore.getState().refreshDocuments();
+        }
       }
       if (removed) {
         await deleteFileIfExists(removed.rawUri);

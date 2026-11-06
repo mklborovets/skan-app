@@ -59,25 +59,50 @@ export const documentRepository = {
 
   async upsertDocument(doc: ScannedDocument): Promise<void> {
     await sqliteClient.executeAsync(
-      `INSERT OR REPLACE INTO documents (
+      `INSERT INTO documents (
         id, title, doc_type, pdf_path, page_count, created_at, updated_at, cloud_synced_at
-      ) VALUES (
-        ?, ?, ?, ?, ?,
-        COALESCE((SELECT created_at FROM documents WHERE id = ?), ?),
-        ?, ?
-      );`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        title = excluded.title,
+        doc_type = excluded.doc_type,
+        pdf_path = COALESCE(excluded.pdf_path, documents.pdf_path),
+        page_count = excluded.page_count,
+        updated_at = excluded.updated_at,
+        cloud_synced_at = excluded.cloud_synced_at;`,
       [
         doc.id,
         doc.title,
         doc.docType,
         doc.pdfPath,
         doc.pageCount,
-        doc.id,
         doc.createdAt,
         doc.updatedAt,
         doc.cloudSyncedAt,
       ],
     );
+  },
+
+  async updateDocumentMetadata(
+    documentId: string,
+    params: {title?: string; docType?: DocumentType},
+  ): Promise<void> {
+    const now = Date.now();
+    if (params.title !== undefined && params.docType !== undefined) {
+      await sqliteClient.executeAsync(
+        'UPDATE documents SET title = ?, doc_type = ?, updated_at = ? WHERE id = ?;',
+        [params.title, params.docType, now, documentId],
+      );
+    } else if (params.title !== undefined) {
+      await sqliteClient.executeAsync(
+        'UPDATE documents SET title = ?, updated_at = ? WHERE id = ?;',
+        [params.title, now, documentId],
+      );
+    } else if (params.docType !== undefined) {
+      await sqliteClient.executeAsync(
+        'UPDATE documents SET doc_type = ?, updated_at = ? WHERE id = ?;',
+        [params.docType, now, documentId],
+      );
+    }
   },
 
   async markCloudSynced(documentId: string, syncedAt: number): Promise<void> {

@@ -66,11 +66,13 @@ const getJsiBindings = (): SkanJsiGlobal => {
     !jsiInstallAttempted &&
     typeof globalObj.__skanDetectStaticEdges !== 'function'
   ) {
-    jsiInstallAttempted = true;
     const installer = NativeModules.BonusIntegrationsModule as
       | NativeJsiInstallerSpec
       | undefined;
-    installer?.installOpenCvJsi?.();
+    const installed = installer?.installOpenCvJsi?.();
+    if (installed || typeof globalObj.__skanDetectStaticEdges === 'function') {
+      jsiInstallAttempted = true;
+    }
   }
   return globalObj;
 };
@@ -129,29 +131,58 @@ export const warpAndFilterImage = async (params: {
 
   if (typeof jsi.__skanWarpAndFilterImage === 'function') {
     await yieldToUiFrame();
-    const result = jsi.__skanWarpAndFilterImage(
-      cleanInputPath,
-      cleanOutputPath,
-      params.corners,
-      params.preset,
-    );
-    return {
-      success: result.success,
-      outputUri: ensureFileUriPrefix(result.outputPath),
-      width: result.width,
-      height: result.height,
-      appliedPreset: result.appliedPreset,
-    };
+    try {
+      const result = jsi.__skanWarpAndFilterImage(
+        cleanInputPath,
+        cleanOutputPath,
+        params.corners,
+        params.preset,
+      );
+      if (result.success && result.outputPath) {
+        const fileExists = await RNFS.exists(result.outputPath);
+        if (fileExists) {
+          return {
+            success: true,
+            outputUri: ensureFileUriPrefix(result.outputPath),
+            width: result.width > 0 ? result.width : 1080,
+            height: result.height > 0 ? result.height : 1440,
+            appliedPreset: result.appliedPreset,
+          };
+        }
+      }
+    } catch (jsiError) {
+      console.warn('[OpenCvBridge] __skanWarpAndFilterImage threw:', jsiError);
+    }
   }
 
-  const inputExists = await RNFS.exists(cleanInputPath);
-  if (inputExists && cleanInputPath !== cleanOutputPath) {
-    await RNFS.copyFile(cleanInputPath, cleanOutputPath);
+  try {
+    const parentDir = cleanOutputPath.substring(0, cleanOutputPath.lastIndexOf('/'));
+    if (parentDir && !(await RNFS.exists(parentDir))) {
+      await RNFS.mkdir(parentDir);
+    }
+
+    const inputExists = await RNFS.exists(cleanInputPath);
+    if (inputExists && cleanInputPath !== cleanOutputPath) {
+      await RNFS.copyFile(cleanInputPath, cleanOutputPath);
+    }
+
+    const outputExists = await RNFS.exists(cleanOutputPath);
+    if (outputExists) {
+      return {
+        success: true,
+        outputUri: ensureFileUriPrefix(cleanOutputPath),
+        width: 1080,
+        height: 1440,
+        appliedPreset: params.preset,
+      };
+    }
+  } catch (copyError) {
+    console.warn('[OpenCvBridge] Fallback copy failed:', copyError);
   }
 
   return {
     success: true,
-    outputUri: ensureFileUriPrefix(cleanOutputPath),
+    outputUri: ensureFileUriPrefix(cleanInputPath || cleanOutputPath),
     width: 1080,
     height: 1440,
     appliedPreset: params.preset,

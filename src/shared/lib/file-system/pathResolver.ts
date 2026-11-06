@@ -24,7 +24,31 @@ export const normalizePersistentPath = (
   if (!pathOrUri) {
     return null;
   }
-  const clean = stripFileUriPrefix(pathOrUri);
+  const clean = stripFileUriPrefix(pathOrUri).trim();
+  if (!clean || clean === 'file://') {
+    return null;
+  }
+
+  const processedMarker = `/${PROCESSED_PAGES_FOLDER}/`;
+  const procIdx = clean.indexOf(processedMarker);
+  if (procIdx !== -1) {
+    const filename = clean.slice(procIdx + processedMarker.length);
+    return ensureFileUriPrefix(`${getProcessedPagesDirPath()}/${filename}`);
+  }
+
+  const rawMarker = `/${RAW_SCANS_FOLDER}/`;
+  const rawIdx = clean.indexOf(rawMarker);
+  if (rawIdx !== -1) {
+    const filename = clean.slice(rawIdx + rawMarker.length);
+    return ensureFileUriPrefix(`${getRawScansDirPath()}/${filename}`);
+  }
+
+  const pdfMarker = `/${EXPORTED_PDFS_FOLDER}/`;
+  const pdfIdx = clean.indexOf(pdfMarker);
+  if (pdfIdx !== -1) {
+    const filename = clean.slice(pdfIdx + pdfMarker.length);
+    return ensureFileUriPrefix(`${getExportedPdfsDirPath()}/${filename}`);
+  }
 
   const docMarker = '/Documents/';
   const docIdx = clean.indexOf(docMarker);

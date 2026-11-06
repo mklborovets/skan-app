@@ -23,7 +23,6 @@ import {
 } from '@shared/lib/file-system/pathResolver';
 import {
   deleteFileIfExists,
-  purgeRawScanCache,
 } from '@shared/lib/file-system/tempFileCleaner';
 
 export interface PdfExportPipelineState {
@@ -57,19 +56,7 @@ export const usePdfExportPipeline = (): PdfExportPipelineState => {
         const previousPdfPath = existingDoc?.pdfPath ?? null;
         const now = Date.now();
         const pdfOutputPath = buildExportedPdfFilePath(sessionId);
-
-        const initialDoc: ScannedDocument = {
-          id: sessionId,
-          title: activeDocumentTitle.trim() || `Scan ${sessionId}`,
-          docType: docTypeOverride,
-          pdfPath: previousPdfPath,
-          coverUri: pages[0]?.processedUri ?? null,
-          pageCount: pages.length,
-          createdAt: existingDoc?.createdAt ?? now,
-          updatedAt: now,
-          cloudSyncedAt: existingDoc?.cloudSyncedAt ?? null,
-        };
-        await saveDocumentRecord(initialDoc);
+        const docTitle = activeDocumentTitle.trim() || `Scan ${sessionId}`;
 
         const pdfPagesInput: PdfPageInput[] = [];
         const collectedOcrTexts: string[] = [];
@@ -80,8 +67,30 @@ export const usePdfExportPipeline = (): PdfExportPipelineState => {
           if (!page) {
             continue;
           }
-          setProgressText(`OCR & Indexing Page ${i + 1} / ${pages.length}`);
-          const ocrResult = await recognizeTextWithMlKit(page.processedUri);
+          let ocrResult = {
+            fullText: page.ocrText || '',
+            blocks: page.ocrBlocks || [],
+            detectedBarcodes: [] as string[],
+          };
+
+          if (!ocrResult.fullText && ocrResult.blocks.length === 0) {
+            setProgressText(`OCR & Indexing Page ${i + 1} / ${pages.length}`);
+            try {
+              ocrResult = await recognizeTextWithMlKit(page.processedUri);
+              if (
+                !ocrResult.fullText.trim() &&
+                page.rawUri &&
+                page.rawUri !== page.processedUri
+              ) {
+                const rawOcr = await recognizeTextWithMlKit(page.rawUri);
+                if (rawOcr.fullText.trim()) {
+                  ocrResult = rawOcr;
+                }
+              }
+            } catch (ocrErr) {
+              console.warn('[PdfExport] OCR failed on page:', ocrErr);
+            }
+          }
           if (ocrResult.fullText) {
             collectedOcrTexts.push(ocrResult.fullText);
           }
@@ -93,7 +102,7 @@ export const usePdfExportPipeline = (): PdfExportPipelineState => {
             ocrBlocks: ocrResult.blocks,
           };
 
-          await pageRepository.upsertPage(updatedPage);
+          await pageRepository.upsertPage(updatedPage, docTitle);
           sessionState.updatePageOcrResult(
             page.id,
             ocrResult.fullText,
@@ -120,17 +129,22 @@ export const usePdfExportPipeline = (): PdfExportPipelineState => {
         setProgressText(`Assembling ${pages.length}-page A4 PDF...`);
         const pdfResponse = await generateSearchablePdfOnDevice({
           outputFilePath: pdfOutputPath,
-          title: initialDoc.title,
+          title: docTitle,
           jpegQuality: SCAN_CONSTANTS.PDF_JPEG_QUALITY,
           pages: pdfPagesInput,
         });
 
         const completedDoc: ScannedDocument = {
-          ...initialDoc,
+          id: sessionId,
+          title: docTitle,
           docType:
             docTypeOverride !== 'standard' ? docTypeOverride : autoClassified,
           pdfPath: pdfResponse.pdfUri,
+          coverUri: firstPage?.processedUri ?? null,
+          pageCount: pages.length,
+          createdAt: existingDoc?.createdAt ?? now,
           updatedAt: Date.now(),
+          cloudSyncedAt: existingDoc?.cloudSyncedAt ?? null,
         };
         await saveDocumentRecord(completedDoc);
 
@@ -140,9 +154,6 @@ export const usePdfExportPipeline = (): PdfExportPipelineState => {
         ) {
           await deleteFileIfExists(previousPdfPath);
         }
-
-        const activeRawUris = pages.map(p => p.rawUri);
-        await purgeRawScanCache(activeRawUris);
 
         return completedDoc;
       } finally {

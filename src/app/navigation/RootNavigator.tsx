@@ -1,13 +1,14 @@
 import React from 'react';
-import {ExportPdfButton} from '@features/export-searchable-pdf';
-import {CameraScanPage} from '@pages/camera-scan-page';
-import {CropEditPage} from '@pages/crop-edit-page';
-import {DocumentReviewPage} from '@pages/document-review-page';
-import {LibraryPage} from '@pages/library-page';
-import {PdfPreviewPage} from '@pages/pdf-preview-page';
-import {PrimaryButton} from '@shared/ui/button/PrimaryButton';
-import {Row} from '@shared/ui/layout/Row';
-import {useRootNavigationController} from './useRootNavigationController';
+import { pageRepository, useScanSessionStore } from '@entities/scanned-page';
+import { ExportPdfButton } from '@features/export-searchable-pdf';
+import { CameraScanPage } from '@pages/camera-scan-page';
+import { CropEditPage } from '@pages/crop-edit-page';
+import { DocumentReviewPage } from '@pages/document-review-page';
+import { LibraryPage } from '@pages/library-page';
+import { PdfPreviewPage } from '@pages/pdf-preview-page';
+import { deleteFileIfExists } from '@shared/lib/file-system/tempFileCleaner';
+import { PrimaryButton } from '@shared/ui/button/PrimaryButton';
+import { useRootNavigationController } from './useRootNavigationController';
 
 export const RootNavigator: React.FC = () => {
   const {
@@ -18,7 +19,6 @@ export const RootNavigator: React.FC = () => {
     progressText,
     handleExportSession,
     handleEditDocumentFromPreview,
-    handleDriveExport,
     handleRunBenchmark,
   } = useRootNavigationController();
 
@@ -26,9 +26,13 @@ export const RootNavigator: React.FC = () => {
     return (
       <CameraScanPage
         onPhotoCaptured={pageId =>
-          setRoute({screen: 'CropEdit', activePageId: pageId})
+          setRoute({
+            screen: 'CropEdit',
+            activePageId: pageId,
+            fromScreen: 'CameraScan',
+          })
         }
-        onReviewSession={() => setRoute({screen: 'DocumentReview'})}
+        onReviewSession={() => setRoute({ screen: 'DocumentReview' })}
         onCancel={() =>
           setRoute({
             screen: sessionPages.length > 0 ? 'DocumentReview' : 'Library',
@@ -39,11 +43,36 @@ export const RootNavigator: React.FC = () => {
   }
 
   if (route.screen === 'CropEdit' && route.activePageId) {
+    const handleCropCancel = async () => {
+      const activeId = route.activePageId!;
+      if (route.fromScreen === 'CameraScan') {
+        const removed = useScanSessionStore
+          .getState()
+          .removeSessionPage(activeId);
+        if (removed) {
+          await deleteFileIfExists(removed.rawUri);
+          if (removed.processedUri && removed.processedUri !== removed.rawUri) {
+            await deleteFileIfExists(removed.processedUri);
+          }
+          try {
+            await pageRepository.deletePageById(activeId);
+          } catch {
+            return;
+          }
+        }
+        setRoute({ screen: 'CameraScan' });
+      } else {
+        setRoute({ screen: 'DocumentReview' });
+      }
+    };
+
     return (
       <CropEditPage
         pageId={route.activePageId}
-        onCropApplied={() => setRoute({screen: 'DocumentReview'})}
-        onCancel={() => setRoute({screen: 'DocumentReview'})}
+        onCropApplied={() => setRoute({ screen: 'DocumentReview' })}
+        onCancel={() => {
+          void handleCropCancel();
+        }}
       />
     );
   }
@@ -51,14 +80,18 @@ export const RootNavigator: React.FC = () => {
   if (route.screen === 'DocumentReview') {
     return (
       <DocumentReviewPage
-        onAddMorePages={() => setRoute({screen: 'CameraScan'})}
+        onAddMorePages={() => setRoute({ screen: 'CameraScan' })}
         onEditPageCrop={pageId =>
-          setRoute({screen: 'CropEdit', activePageId: pageId})
+          setRoute({
+            screen: 'CropEdit',
+            activePageId: pageId,
+            fromScreen: 'DocumentReview',
+          })
         }
         onExportSuccess={documentId =>
-          setRoute({screen: 'PdfPreview', activeDocumentId: documentId})
+          setRoute({ screen: 'PdfPreview', activeDocumentId: documentId })
         }
-        onBack={() => setRoute({screen: 'Library'})}
+        onBack={() => setRoute({ screen: 'Library' })}
         exportActionSlot={
           <ExportPdfButton
             pageCount={sessionPages.length}
@@ -81,26 +114,16 @@ export const RootNavigator: React.FC = () => {
         onEditDocument={() => {
           void handleEditDocumentFromPreview(docId);
         }}
-        onBackToLibrary={() => setRoute({screen: 'Library'})}
+        onBackToLibrary={() => setRoute({ screen: 'Library' })}
         extraActionsSlot={
-          <Row justify="space-between">
-            <PrimaryButton
-              label="Google Drive"
-              icon="cloudUpload"
-              variant="secondary"
-              onPress={() => {
-                void handleDriveExport(docId);
-              }}
-            />
-            <PrimaryButton
-              label="ML Kit Benchmark"
-              icon="scanLine"
-              variant="secondary"
-              onPress={() => {
-                void handleRunBenchmark(docId);
-              }}
-            />
-          </Row>
+          <PrimaryButton
+            label="ML Kit Benchmark"
+            icon="scanLine"
+            variant="secondary"
+            onPress={() => {
+              void handleRunBenchmark(docId);
+            }}
+          />
         }
       />
     );
@@ -108,9 +131,9 @@ export const RootNavigator: React.FC = () => {
 
   return (
     <LibraryPage
-      onStartNewScan={() => setRoute({screen: 'CameraScan'})}
+      onStartNewScan={() => setRoute({ screen: 'CameraScan' })}
       onOpenDocumentPreview={documentId =>
-        setRoute({screen: 'PdfPreview', activeDocumentId: documentId})
+        setRoute({ screen: 'PdfPreview', activeDocumentId: documentId })
       }
     />
   );

@@ -36,8 +36,12 @@ export const PdfPreviewPage: React.FC<PdfPreviewPageProps> = ({
         <AppText variant="caption" color="textSecondary">
           {`A4 Page ${index + 1} of ${controller.pages.length}`}
         </AppText>
-        <AppText variant="mono" color="accent">
-          300 DPI • Searchable OCR
+        <AppText
+          variant="mono"
+          color={item.ocrText?.trim().length > 0 ? 'accent' : 'textSecondary'}>
+          {item.ocrText?.trim().length > 0
+            ? '300 DPI • Searchable OCR'
+            : '300 DPI • Clean Scan'}
         </AppText>
       </Row>
       <Image
@@ -93,22 +97,34 @@ export const PdfPreviewPage: React.FC<PdfPreviewPageProps> = ({
       />
 
       <View style={styles.footer}>
-        {extraActionsSlot}
         <PrimaryButton
-          label="Share / Export Searchable PDF"
+          label="Share PDF"
           icon="share"
           onPress={() => {
             void controller.onSharePdf();
           }}
         />
+        {extraActionsSlot}
       </View>
 
       <BottomSheetModal
         visible={controller.showOcrModal}
         title="Embedded OCR Text Layer"
         onClose={() => controller.setShowOcrModal(false)}>
-        <ScrollView style={styles.ocrScroll}>
-          <AppText variant="body" color="textSecondary">
+        <View style={styles.ocrActionsRow}>
+          <PrimaryButton
+            label={controller.isCopied ? 'Copied to Clipboard!' : 'Copy All Text'}
+            icon={controller.isCopied ? 'check' : 'clipboard'}
+            variant="secondary"
+            onPress={controller.onCopyAllOcrText}
+          />
+        </View>
+        <ScrollView style={styles.ocrScroll} nestedScrollEnabled>
+          <AppText
+            variant="body"
+            color="textSecondary"
+            selectable={true}
+            style={styles.selectableOcrText}>
             {controller.combinedOcrText}
           </AppText>
         </ScrollView>
@@ -153,6 +169,13 @@ const styles = StyleSheet.create({
   },
   ocrScroll: {
     maxHeight: 320,
+  },
+  ocrActionsRow: {
+    marginBottom: theme.spacing.xs,
+  },
+  selectableOcrText: {
+    lineHeight: 22,
+    paddingVertical: theme.spacing.xs,
   },
   emptyCard: {
     backgroundColor: theme.colors.surface,

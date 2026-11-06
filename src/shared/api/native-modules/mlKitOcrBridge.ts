@@ -31,10 +31,27 @@ export const recognizeTextWithMlKit = async (
   const nativeModule = NativeModules.OcrProcessorModule as
     | NativeOcrProcessorSpec
     | undefined;
-  const cleanPath = stripFileUriPrefix(imageUriOrPath);
+  const cleanPath = stripFileUriPrefix(imageUriOrPath).trim();
+
+  if (!cleanPath || cleanPath === 'file://') {
+    return {
+      fullText: '',
+      blocks: [],
+      detectedBarcodes: [],
+    };
+  }
 
   if (nativeModule?.recognizeFile) {
-    return nativeModule.recognizeFile(cleanPath);
+    try {
+      const result = await nativeModule.recognizeFile(cleanPath);
+      return {
+        fullText: result?.fullText ?? '',
+        blocks: result?.blocks ?? [],
+        detectedBarcodes: result?.detectedBarcodes ?? [],
+      };
+    } catch (ocrError) {
+      console.warn('[MlKitOcrBridge] OCR recognizeFile failed:', ocrError);
+    }
   }
 
   return {

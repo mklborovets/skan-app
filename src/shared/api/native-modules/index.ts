@@ -27,6 +27,7 @@ export {
   consumeSharedIncomingImages,
   exportPdfToGoogleDriveNative,
   runMlKitDocumentScannerBenchmark,
+  sharePdfFileNative,
 } from './bonusIntegrationsBridge';
 export type {
   GoogleDriveSyncResponse,

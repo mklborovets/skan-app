@@ -1,11 +1,19 @@
 import {useCallback, useEffect} from 'react';
-import {Platform, Share} from 'react-native';
 import {ScannedDocument, useDocumentStore} from '@entities/document';
 import {pageRepository, useScanSessionStore} from '@entities/scanned-page';
 import {
   FullTextSearchState,
   useFullTextSearch,
 } from '@features/search-by-ocr';
+import {
+  generateSearchablePdfOnDevice,
+  sharePdfFileNative,
+} from '@shared/api/native-modules';
+import {SCAN_CONSTANTS} from '@shared/config/scanConstants';
+import {
+  buildExportedPdfFilePath,
+  ensureAppStorageDirectories,
+} from '@shared/lib/file-system/pathResolver';
 
 export interface UseDocumentLibraryControllerParams {
   onStartNewScan: () => void;
@@ -66,14 +74,34 @@ export const useDocumentLibraryController = ({
   );
 
   const onShareDocument = useCallback(async (doc: ScannedDocument) => {
-    if (!doc.pdfPath) {
+    let pdfPath = doc.pdfPath;
+    if (!pdfPath) {
+      const docPages = await pageRepository.getPagesByDocumentId(doc.id);
+      if (docPages.length > 0) {
+        await ensureAppStorageDirectories();
+        const outputFilePath = buildExportedPdfFilePath(doc.id);
+        const pdfRes = await generateSearchablePdfOnDevice({
+          outputFilePath,
+          title: doc.title,
+          jpegQuality: SCAN_CONSTANTS.PDF_JPEG_QUALITY,
+          pages: docPages.map(p => ({
+            pageId: p.id,
+            processedUri: p.processedUri,
+            ocrBlocks: p.ocrBlocks,
+          })),
+        });
+        pdfPath = pdfRes.pdfUri;
+        await useDocumentStore.getState().saveDocumentRecord({
+          ...doc,
+          pdfPath,
+          updatedAt: Date.now(),
+        });
+      }
+    }
+    if (!pdfPath) {
       return;
     }
-    await Share.share(
-      Platform.OS === 'ios'
-        ? {url: doc.pdfPath}
-        : {title: doc.title, url: doc.pdfPath},
-    );
+    await sharePdfFileNative(pdfPath, doc.title);
   }, []);
 
   const onDeleteDocument = useCallback(

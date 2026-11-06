@@ -9,5 +9,6 @@ export interface NavigationRouteState {
   screen: AppScreenName;
   activePageId?: string;
   activeDocumentId?: string;
+  fromScreen?: AppScreenName;
 }
 

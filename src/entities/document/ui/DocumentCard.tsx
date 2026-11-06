@@ -43,24 +43,27 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
         <AppText variant="bodyStrong" numberOfLines={1}>
           {document.title}
         </AppText>
-        <Row gap="xs" wrap>
+        <Row gap="xs" align="center" style={styles.metaRow}>
           <DocumentTypeBadge docType={document.docType} />
-          <AppText variant="caption" color="textSecondary">
+          <AppText variant="caption" color="textSecondary" numberOfLines={1}>
             {`${document.pageCount} p. • ${formattedDate}`}
           </AppText>
         </Row>
         {document.matchedSnippet ? (
-          <AppText
-            variant="caption"
-            color="accent"
-            numberOfLines={2}
-            style={styles.snippet}>
-            {document.matchedSnippet}
-          </AppText>
+          <View style={styles.snippetContainer}>
+            <AppIcon name="search" size={12} color={theme.colors.accent} />
+            <AppText
+              variant="caption"
+              color="accent"
+              numberOfLines={1}
+              style={styles.snippet}>
+              {document.matchedSnippet}
+            </AppText>
+          </View>
         ) : null}
       </View>
 
-      <Row gap="xs">
+      <Row gap="xs" style={styles.actionButtons}>
         {onShare ? (
           <IconButton
             icon="share"
@@ -93,6 +96,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.borderSubtle,
     padding: theme.spacing.sm,
     gap: theme.spacing.sm,
+    minHeight: 98,
   },
   pressed: {
     opacity: 0.85,
@@ -105,6 +109,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    alignSelf: 'center',
   },
   thumbnail: {
     width: '100%',
@@ -112,10 +117,29 @@ const styles = StyleSheet.create({
   },
   infoColumn: {
     flex: 1,
-    gap: 6,
+    justifyContent: 'center',
+    gap: 4,
+    minWidth: 0,
+  },
+  metaRow: {
+    flexWrap: 'nowrap',
+  },
+  snippetContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: theme.radii.xs,
+    marginTop: 2,
   },
   snippet: {
-    marginTop: 2,
+    flex: 1,
+    lineHeight: 15,
+  },
+  actionButtons: {
+    alignSelf: 'center',
   },
 });
 

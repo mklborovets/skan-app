@@ -47,6 +47,7 @@ export const DocumentLibraryList: React.FC<DocumentLibraryListProps> = ({
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           <View style={styles.emptyBox}>
             <AppIcon

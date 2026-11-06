@@ -71,26 +71,35 @@ export const pageRepository = {
     return rows.map(mapRowToScannedPage);
   },
 
-  async upsertPage(page: ScannedPage): Promise<void> {
+  async upsertPage(page: ScannedPage, documentTitle?: string): Promise<void> {
     const db = sqliteClient.getDatabase();
     await db.transaction(async tx => {
       const now = Date.now();
+      const defaultTitle =
+        documentTitle?.trim() ||
+        `Scan ${new Date(now).toISOString().slice(0, 16).replace('T', ' ')}`;
       await tx.executeAsync(
         `INSERT OR IGNORE INTO documents (
           id, title, doc_type, pdf_path, page_count, created_at, updated_at, cloud_synced_at
         ) VALUES (?, ?, 'standard', NULL, 0, ?, ?, NULL);`,
-        [
-          page.documentId,
-          `Scan ${new Date(now).toISOString().slice(0, 16).replace('T', ' ')}`,
-          now,
-          now,
-        ],
+        [page.documentId, defaultTitle, now, now],
       );
 
       await tx.executeAsync(
-        `INSERT OR REPLACE INTO pages (
+        `INSERT INTO pages (
           id, document_id, page_index, raw_uri, processed_uri, filter_preset, corners_json, ocr_text, ocr_blocks_json, width, height
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          document_id = excluded.document_id,
+          page_index = excluded.page_index,
+          raw_uri = excluded.raw_uri,
+          processed_uri = excluded.processed_uri,
+          filter_preset = excluded.filter_preset,
+          corners_json = excluded.corners_json,
+          ocr_text = excluded.ocr_text,
+          ocr_blocks_json = excluded.ocr_blocks_json,
+          width = excluded.width,
+          height = excluded.height;`,
         [
           page.id,
           page.documentId,

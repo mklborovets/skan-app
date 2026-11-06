@@ -7,6 +7,7 @@ import {
 } from '@entities/document';
 import {SCAN_CONSTANTS} from '@shared/config/scanConstants';
 import {sqliteClient} from '@shared/db';
+import {normalizePersistentPath} from '@shared/lib/file-system/pathResolver';
 
 export interface FullTextSearchState {
   query: string;
@@ -63,21 +64,40 @@ export const useFullTextSearch = (): FullTextSearchState => {
       requestIdRef.current = currentRequestId;
       setIsSearching(true);
       try {
-        const rows = await sqliteClient.queryRows<DocumentRowRecord>(
-          `SELECT
-            d.*,
-            (SELECT p.processed_uri FROM pages p WHERE p.document_id = d.id ORDER BY p.page_index ASC LIMIT 1) AS cover_uri,
-            snippet(pages_fts, 2, '[', ']', ' … ', 12) AS matched_snippet
-          FROM pages_fts
-          INNER JOIN documents d ON d.id = pages_fts.document_id
-          WHERE pages_fts MATCH ?
-          GROUP BY d.id
-          ORDER BY bm25(pages_fts) ASC
-          LIMIT 50;`,
-          [ftsExpression],
-        );
+        let ftsRows: DocumentRowRecord[] = [];
+        try {
+          ftsRows = await sqliteClient.queryRows<DocumentRowRecord>(
+            `SELECT
+              d.*,
+              (SELECT p.processed_uri FROM pages p WHERE p.document_id = d.id ORDER BY p.page_index ASC LIMIT 1) AS cover_uri,
+              snippet(pages_fts, 2, '[', ']', ' … ', 12) AS matched_snippet
+            FROM pages_fts
+            INNER JOIN documents d ON d.id = pages_fts.document_id
+            WHERE pages_fts MATCH ?
+            ORDER BY bm25(pages_fts) ASC
+            LIMIT 50;`,
+            [ftsExpression],
+          );
+        } catch {
+          ftsRows = [];
+        }
 
         const escapedLike = escapeLikePattern(rawText.trim());
+        const likePattern = `%${escapedLike}%`;
+
+        const ocrLikeFallbackRows = await sqliteClient.queryRows<DocumentRowRecord>(
+          `SELECT
+            d.*,
+            (SELECT p2.processed_uri FROM pages p2 WHERE p2.document_id = d.id ORDER BY p2.page_index ASC LIMIT 1) AS cover_uri,
+            substr(p.ocr_text, 1, 120) AS matched_snippet
+          FROM pages p
+          INNER JOIN documents d ON d.id = p.document_id
+          WHERE p.ocr_text LIKE ? ESCAPE '\\'
+          ORDER BY d.updated_at DESC
+          LIMIT 30;`,
+          [likePattern],
+        );
+
         const titleFallbackRows = await sqliteClient.queryRows<DocumentRowRecord>(
           `SELECT
             d.*,
@@ -86,7 +106,7 @@ export const useFullTextSearch = (): FullTextSearchState => {
           WHERE d.title LIKE ? ESCAPE '\\'
           ORDER BY d.updated_at DESC
           LIMIT 25;`,
-          [`%${escapedLike}%`],
+          [likePattern],
         );
 
         if (requestIdRef.current !== currentRequestId) {
@@ -94,7 +114,11 @@ export const useFullTextSearch = (): FullTextSearchState => {
         }
 
         const mergedMap = new Map<string, ScannedDocument>();
-        for (const row of [...rows, ...titleFallbackRows]) {
+        for (const row of [
+          ...ftsRows,
+          ...ocrLikeFallbackRows,
+          ...titleFallbackRows,
+        ]) {
           if (mergedMap.has(row.id)) {
             continue;
           }
@@ -102,8 +126,8 @@ export const useFullTextSearch = (): FullTextSearchState => {
             id: row.id,
             title: row.title,
             docType: normalizeDocType(row.doc_type),
-            pdfPath: row.pdf_path ?? null,
-            coverUri: row.cover_uri ?? null,
+            pdfPath: normalizePersistentPath(row.pdf_path),
+            coverUri: normalizePersistentPath(row.cover_uri),
             pageCount: Number(row.page_count),
             createdAt: Number(row.created_at),
             updatedAt: Number(row.updated_at),

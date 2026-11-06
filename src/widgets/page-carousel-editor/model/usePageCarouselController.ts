@@ -1,10 +1,11 @@
-import {useCallback, useEffect, useMemo} from 'react';
-import {ScannedPage, useScanSessionStore} from '@entities/scanned-page';
-import {useImageFilterProcessor} from '@features/apply-image-filter';
-import {useDocumentClassifier} from '@features/classify-document-type';
-import {usePageReorder} from '@features/reorder-document-pages';
-import {FilterPresetId} from '@shared/api/native-modules';
-import {ClassificationResult} from '@shared/lib/classification/documentClassifier';
+import { useCallback, useEffect, useMemo } from 'react';
+import { documentRepository, useDocumentStore } from '@entities/document';
+import { ScannedPage, useScanSessionStore } from '@entities/scanned-page';
+import { useImageFilterProcessor } from '@features/apply-image-filter';
+import { useDocumentClassifier } from '@features/classify-document-type';
+import { usePageReorder } from '@features/reorder-document-pages';
+import { FilterPresetId } from '@shared/api/native-modules';
+import { ClassificationResult } from '@shared/lib/classification/documentClassifier';
 
 export interface UsePageCarouselControllerParams {
   onAddMorePages: () => void;
@@ -47,8 +48,8 @@ export const usePageCarouselController = ({
     deletePage,
   } = usePageReorder();
 
-  const {isApplyingFilter, applyFilterToActivePage} = useImageFilterProcessor();
-  const {classification, analyzePageAndClassify} = useDocumentClassifier();
+  const { isApplyingFilter, applyFilterToActivePage } = useImageFilterProcessor();
+  const { classification, analyzePageAndClassify } = useDocumentClassifier();
 
   const activePage = useMemo(
     () => pages.find(p => p.id === activePageId) ?? pages[0] ?? null,
@@ -59,7 +60,31 @@ export const usePageCarouselController = ({
     if (activePage) {
       void analyzePageAndClassify(activePage);
     }
-  }, [activePage, analyzePageAndClassify]);
+  }, [activePage?.id, activePage?.processedUri, analyzePageAndClassify]);
+
+  const handleSetDocumentTitle = useCallback(
+    (title: string) => {
+      setDocumentTitle(title);
+      const sessionId = useScanSessionStore.getState().sessionId;
+      if (title.trim()) {
+        void documentRepository.updateDocumentMetadata(sessionId, {
+          title: title.trim(),
+        });
+      }
+    },
+    [setDocumentTitle],
+  );
+
+  const handleBack = useCallback(() => {
+    const state = useScanSessionStore.getState();
+    const cleanTitle = state.activeDocumentTitle.trim();
+    if (cleanTitle) {
+      void documentRepository
+        .updateDocumentMetadata(state.sessionId, { title: cleanTitle })
+        .then(() => useDocumentStore.getState().refreshDocuments());
+    }
+    onBack();
+  }, [onBack]);
 
   const onEditCropPress = useCallback(() => {
     if (activePage) {
@@ -101,7 +126,7 @@ export const usePageCarouselController = ({
     activePage,
     classification,
     isApplyingFilter,
-    setDocumentTitle,
+    setDocumentTitle: handleSetDocumentTitle,
     onSelectPage: selectPage,
     onMoveLeft,
     onMoveRight,
@@ -109,7 +134,7 @@ export const usePageCarouselController = ({
     onSelectPreset,
     onEditCropPress,
     onAddPagePress: onAddMorePages,
-    onBack,
+    onBack: handleBack,
   };
 };
 
