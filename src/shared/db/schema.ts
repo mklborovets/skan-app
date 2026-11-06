@@ -41,6 +41,14 @@ CREATE VIRTUAL TABLE IF NOT EXISTS pages_fts USING fts5(
 );
 `;
 
+export const CREATE_PAGES_FTS_FALLBACK_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS pages_fts (
+  document_id TEXT,
+  page_id TEXT,
+  ocr_text TEXT
+);
+`;
+
 export const CREATE_MIGRATIONS_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY NOT NULL,

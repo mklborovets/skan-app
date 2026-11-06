@@ -18,6 +18,31 @@ export const stripFileUriPrefix = (pathOrUri: string): string => {
   return pathOrUri;
 };
 
+export const normalizePersistentPath = (
+  pathOrUri: string | null | undefined,
+): string | null => {
+  if (!pathOrUri) {
+    return null;
+  }
+  const clean = stripFileUriPrefix(pathOrUri);
+
+  const docMarker = '/Documents/';
+  const docIdx = clean.indexOf(docMarker);
+  if (docIdx !== -1) {
+    const relativeSubpath = clean.slice(docIdx + docMarker.length);
+    return ensureFileUriPrefix(`${RNFS.DocumentDirectoryPath}/${relativeSubpath}`);
+  }
+
+  const cacheMarker = '/Library/Caches/';
+  const cacheIdx = clean.indexOf(cacheMarker);
+  if (cacheIdx !== -1) {
+    const relativeSubpath = clean.slice(cacheIdx + cacheMarker.length);
+    return ensureFileUriPrefix(`${RNFS.CachesDirectoryPath}/${relativeSubpath}`);
+  }
+
+  return ensureFileUriPrefix(clean);
+};
+
 export const getRawScansDirPath = (): string =>
   `${RNFS.CachesDirectoryPath}/${RAW_SCANS_FOLDER}`;
 
@@ -51,6 +76,8 @@ export const buildProcessedPageFilePath = (
 ): string =>
   `${getProcessedPagesDirPath()}/page_${pageId}_${preset}_${Date.now()}.jpg`;
 
-export const buildExportedPdfFilePath = (documentId: string): string =>
-  `${getExportedPdfsDirPath()}/doc_${documentId}_${Date.now()}.pdf`;
+export const buildExportedPdfFilePath = (documentId: string): string => {
+  const sanitizedId = documentId.replace(/^doc_/, '');
+  return `${getExportedPdfsDirPath()}/doc_${sanitizedId}_${Date.now()}.pdf`;
+};
 

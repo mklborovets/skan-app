@@ -1,4 +1,5 @@
 import {sqliteClient} from '@shared/db';
+import {normalizePersistentPath} from '@shared/lib/file-system/pathResolver';
 import {deleteFileIfExists} from '@shared/lib/file-system/tempFileCleaner';
 import {DocumentRowRecord, DocumentType, ScannedDocument} from './types';
 
@@ -18,8 +19,8 @@ const mapRowToDocument = (row: DocumentRowRecord): ScannedDocument => ({
   id: row.id,
   title: row.title,
   docType: normalizeDocType(row.doc_type),
-  pdfPath: row.pdf_path ?? null,
-  coverUri: row.cover_uri ?? null,
+  pdfPath: normalizePersistentPath(row.pdf_path),
+  coverUri: normalizePersistentPath(row.cover_uri),
   pageCount: Number(row.page_count),
   createdAt: Number(row.created_at),
   updatedAt: Number(row.updated_at),

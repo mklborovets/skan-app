@@ -18,10 +18,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
       try {
         await ensureAppStorageDirectories();
         await sqliteClient.initialize();
-      } catch {
-        if (mounted) {
-          setReady(true);
-        }
+      } catch (initErr) {
+        console.error('[DatabaseProvider] Bootstrap failed:', initErr);
       } finally {
         if (mounted) {
           setReady(true);

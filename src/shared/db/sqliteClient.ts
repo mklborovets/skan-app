@@ -11,17 +11,29 @@ class SqliteClient {
   public getDatabase(): DB {
     if (!this.instance) {
       this.instance = open({name: DB_NAME});
+      this.ensureSchema(this.instance);
     }
     return this.instance;
   }
 
-  public async initialize(): Promise<void> {
+  private ensureSchema(db: DB): void {
     if (this.isInitialized) {
       return;
     }
+    try {
+      void runDatabaseMigrations(db);
+      this.isInitialized = true;
+    } catch (err) {
+      console.error('[SqliteClient] Failed to apply schema migrations:', err);
+    }
+  }
+
+  public async initialize(): Promise<void> {
     const db = this.getDatabase();
-    await runDatabaseMigrations(db);
-    this.isInitialized = true;
+    if (!this.isInitialized) {
+      await runDatabaseMigrations(db);
+      this.isInitialized = true;
+    }
   }
 
   public execute(sql: string, params: SqlParamValue[] = []): QueryResult {

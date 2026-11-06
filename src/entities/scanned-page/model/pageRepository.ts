@@ -3,14 +3,15 @@ import {
   OcrTextBlock,
   QuadCornersDto,
 } from '@shared/api/native-modules';
-import {sqliteClient} from '@shared/db';
-import {PageRowRecord, ScannedPage} from './types';
+import { sqliteClient } from '@shared/db';
+import { normalizePersistentPath } from '@shared/lib/file-system/pathResolver';
+import { PageRowRecord, ScannedPage } from './types';
 
 const DEFAULT_CORNERS: QuadCornersDto = {
-  topLeft: {x: 80, y: 110},
-  topRight: {x: 1000, y: 110},
-  bottomRight: {x: 1000, y: 1330},
-  bottomLeft: {x: 80, y: 1330},
+  topLeft: { x: 80, y: 110 },
+  topRight: { x: 1000, y: 110 },
+  bottomRight: { x: 1000, y: 1330 },
+  bottomLeft: { x: 80, y: 1330 },
 };
 
 const parseCornersJson = (rawJson: string): QuadCornersDto => {
@@ -51,8 +52,8 @@ const mapRowToScannedPage = (row: PageRowRecord): ScannedPage => ({
   id: row.id,
   documentId: row.document_id,
   pageIndex: Number(row.page_index),
-  rawUri: row.raw_uri,
-  processedUri: row.processed_uri,
+  rawUri: normalizePersistentPath(row.raw_uri) ?? row.raw_uri,
+  processedUri: normalizePersistentPath(row.processed_uri) ?? row.processed_uri,
   filterPreset: (row.filter_preset as FilterPresetId) || 'original',
   corners: parseCornersJson(row.corners_json),
   ocrText: row.ocr_text ?? '',
@@ -73,6 +74,19 @@ export const pageRepository = {
   async upsertPage(page: ScannedPage): Promise<void> {
     const db = sqliteClient.getDatabase();
     await db.transaction(async tx => {
+      const now = Date.now();
+      await tx.executeAsync(
+        `INSERT OR IGNORE INTO documents (
+          id, title, doc_type, pdf_path, page_count, created_at, updated_at, cloud_synced_at
+        ) VALUES (?, ?, 'standard', NULL, 0, ?, ?, NULL);`,
+        [
+          page.documentId,
+          `Scan ${new Date(now).toISOString().slice(0, 16).replace('T', ' ')}`,
+          now,
+          now,
+        ],
+      );
+
       await tx.executeAsync(
         `INSERT OR REPLACE INTO pages (
           id, document_id, page_index, raw_uri, processed_uri, filter_preset, corners_json, ocr_text, ocr_blocks_json, width, height
@@ -90,6 +104,14 @@ export const pageRepository = {
           page.width,
           page.height,
         ],
+      );
+
+      await tx.executeAsync(
+        `UPDATE documents
+         SET page_count = (SELECT COUNT(*) FROM pages WHERE document_id = ?),
+             updated_at = ?
+         WHERE id = ?;`,
+        [page.documentId, now, page.documentId],
       );
 
       await tx.executeAsync('DELETE FROM pages_fts WHERE page_id = ?;', [
