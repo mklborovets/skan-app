@@ -24,11 +24,21 @@ target 'Skan' do
       :mac_catalyst_enabled => false
     )
 
+    public_vc = File.join(installer.sandbox.root, 'Headers/Public/VisionCamera')
+    source_vc = File.join(installer.sandbox.root, '../node_modules/react-native-vision-camera/ios/FrameProcessors/FrameHostObject.h')
+    if File.directory?(public_vc) && File.exist?(source_vc)
+      FileUtils.ln_sf(source_vc, File.join(public_vc, 'FrameHostObject.h'))
+    end
+
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |build_config|
-        build_config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+        build_config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
         build_config.build_settings['HEADER_SEARCH_PATHS'] ||= '$(inherited) '
-        build_config.build_settings['HEADER_SEARCH_PATHS'] << '"$(PODS_ROOT)/../../cpp/include" "$(PODS_ROOT)/../../cpp/jsi"'
+        build_config.build_settings['HEADER_SEARCH_PATHS'] << ' "$(PODS_ROOT)/../../cpp/include" "$(PODS_ROOT)/../../cpp/jsi" "$(PODS_ROOT)/Headers/Private/VisionCamera"'
+        if target.name == 'op-sqlite'
+          build_config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= '$(inherited) '
+          build_config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << ' SQLITE_ENABLE_FTS5=1'
+        end
       end
     end
   end
