@@ -109,6 +109,37 @@ class BonusIntegrationsModule(
     }
 
     @ReactMethod
+    fun sharePdfFile(pdfFilePath: String, title: String, promise: Promise) {
+        try {
+            val file = File(pdfFilePath)
+            if (!file.exists()) {
+                promise.reject("SHARE_FILE_MISSING", "PDF file does not exist")
+                return
+            }
+            val authority = "${reactApplicationContext.packageName}.fileprovider"
+            val contentUri = FileProvider.getUriForFile(
+                reactApplicationContext,
+                authority,
+                file
+            )
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/pdf"
+                putExtra(Intent.EXTRA_TITLE, title)
+                putExtra(Intent.EXTRA_STREAM, contentUri)
+                clipData = ClipData.newRawUri(title, contentUri)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            val chooser = Intent.createChooser(intent, title).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            reactApplicationContext.startActivity(chooser)
+            promise.resolve(true)
+        } catch (err: Throwable) {
+            promise.reject("SHARE_PDF_ERROR", err.message, err)
+        }
+    }
+
+    @ReactMethod
     fun exportToGoogleDrive(pdfFilePath: String, title: String, promise: Promise) {
         try {
             val file = File(pdfFilePath)

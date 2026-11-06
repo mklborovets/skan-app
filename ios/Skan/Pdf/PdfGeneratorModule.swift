@@ -51,18 +51,32 @@ class PdfGeneratorModule: NSObject {
                     for pageEntry in pages {
                         autoreleasepool {
                             context.beginPage()
-                            guard let filePath = pageEntry["filePath"] as? String,
-                                  let rawImage = UIImage(contentsOfFile: filePath),
-                                  let compressedData = rawImage.jpegData(compressionQuality: jpegQuality),
-                                  let pageImage = UIImage(data: compressedData) else {
+                            var cleanPath = ((pageEntry["filePath"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                            if cleanPath.hasPrefix("file://") {
+                                if let url = URL(string: cleanPath), url.isFileURL {
+                                    cleanPath = url.path
+                                } else {
+                                    cleanPath = String(cleanPath.dropFirst("file://".count))
+                                }
+                            }
+
+                            var pageImage: UIImage? = UIImage(contentsOfFile: cleanPath)
+                            if pageImage == nil, let data = try? Data(contentsOf: URL(fileURLWithPath: cleanPath)) {
+                                pageImage = UIImage(data: data)
+                            }
+                            if let rawImg = pageImage, jpegQuality < 0.99, let jpegData = rawImg.jpegData(compressionQuality: jpegQuality), let recompressed = UIImage(data: jpegData) {
+                                pageImage = recompressed
+                            }
+
+                            guard let img = pageImage else {
                                 return
                             }
 
                             let fitRect = Self.aspectFitRect(
-                                imageSize: pageImage.size,
+                                imageSize: img.size,
                                 bounds: pageRect
                             )
-                            pageImage.draw(in: fitRect)
+                            img.draw(in: fitRect)
 
                             if let ocrBlocks = pageEntry["ocrBlocks"] as? [NSDictionary] {
                                 let invisibleAttrs: [NSAttributedString.Key: Any] = [
@@ -72,12 +86,16 @@ class PdfGeneratorModule: NSObject {
                                 for block in ocrBlocks {
                                     guard let text = block["text"] as? String,
                                           let norm = block["normalizedBox"] as? NSDictionary,
-                                          let nx = norm["x"] as? CGFloat,
-                                          let ny = norm["y"] as? CGFloat,
-                                          let nw = norm["width"] as? CGFloat,
-                                          let nh = norm["height"] as? CGFloat else {
+                                          let nxNum = norm["x"] as? NSNumber,
+                                          let nyNum = norm["y"] as? NSNumber,
+                                          let nwNum = norm["width"] as? NSNumber,
+                                          let nhNum = norm["height"] as? NSNumber else {
                                         continue
                                     }
+                                    let nx = CGFloat(nxNum.doubleValue)
+                                    let ny = CGFloat(nyNum.doubleValue)
+                                    let nw = CGFloat(nwNum.doubleValue)
+                                    let nh = CGFloat(nhNum.doubleValue)
 
                                     let textRect = CGRect(
                                         x: fitRect.origin.x + nx * fitRect.width,

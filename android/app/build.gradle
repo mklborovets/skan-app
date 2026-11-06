@@ -47,6 +47,10 @@ android {
         pickFirst "**/libopencv_java4.so"
     }
 
+    buildFeatures {
+        prefab true
+    }
+
     buildTypes {
         debug {
             signingConfig signingConfigs.debug

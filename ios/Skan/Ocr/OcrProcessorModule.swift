@@ -33,9 +33,36 @@ class OcrProcessorModule: NSObject {
         rejecter: @escaping RCTPromiseRejectBlock
     ) {
         DispatchQueue.global(qos: .userInitiated).async {
-            guard let image = UIImage(contentsOfFile: filePath),
+            var cleanPath = filePath.trimmingCharacters(in: .whitespacesAndNewlines)
+            if cleanPath.hasPrefix("file://") {
+                if let url = URL(string: cleanPath), url.isFileURL {
+                    cleanPath = url.path
+                } else {
+                    cleanPath = String(cleanPath.dropFirst("file://".count))
+                }
+            }
+
+            guard !cleanPath.isEmpty else {
+                resolver([
+                    "fullText": "",
+                    "blocks": [],
+                    "detectedBarcodes": []
+                ])
+                return
+            }
+
+            var loadedImage: UIImage? = UIImage(contentsOfFile: cleanPath)
+            if loadedImage == nil, let data = try? Data(contentsOf: URL(fileURLWithPath: cleanPath)) {
+                loadedImage = UIImage(data: data)
+            }
+
+            guard let image = loadedImage,
                   let cgImage = image.cgImage else {
-                rejecter("OCR_IMAGE_ERROR", "Unable to load image at \(filePath)", nil)
+                resolver([
+                    "fullText": "",
+                    "blocks": [],
+                    "detectedBarcodes": []
+                ])
                 return
             }
 
@@ -84,6 +111,10 @@ class OcrProcessorModule: NSObject {
             }
             textRequest.recognitionLevel = .accurate
             textRequest.usesLanguageCorrection = true
+            if #available(iOS 16.0, *) {
+                textRequest.recognitionLanguages = ["uk-UA", "en-US", "uk", "en"]
+                textRequest.automaticallyDetectsLanguage = true
+            }
 
             let barcodeRequest = VNDetectBarcodesRequest { request, _ in
                 guard let observations = request.results as? [VNBarcodeObservation] else {
@@ -96,21 +127,29 @@ class OcrProcessorModule: NSObject {
                 }
             }
 
-            let handler = VNImageRequestHandler(
+            let textHandler = VNImageRequestHandler(
                 cgImage: cgImage,
                 orientation: orientation,
                 options: [:]
             )
             do {
-                try handler.perform([textRequest, barcodeRequest])
-                resolver([
-                    "fullText": recognizedLines.joined(separator: "\n"),
-                    "blocks": blocksOutput,
-                    "detectedBarcodes": barcodesOutput
-                ])
+                try textHandler.perform([textRequest])
             } catch {
-                rejecter("OCR_VISION_ERROR", error.localizedDescription, error)
+                // Keep empty text if Vision text recognition fails
             }
+
+            let barcodeHandler = VNImageRequestHandler(
+                cgImage: cgImage,
+                orientation: orientation,
+                options: [:]
+            )
+            try? barcodeHandler.perform([barcodeRequest])
+
+            resolver([
+                "fullText": recognizedLines.joined(separator: "\n"),
+                "blocks": blocksOutput,
+                "detectedBarcodes": barcodesOutput
+            ])
         }
     }
 }

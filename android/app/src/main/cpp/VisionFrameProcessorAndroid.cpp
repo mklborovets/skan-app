@@ -1,10 +1,18 @@
+#if __has_include("EdgeDetector.hpp")
 #include "EdgeDetector.hpp"
 #include "PointSorter.hpp"
 #include "SkanOpenCvJsiModule.hpp"
+#else
+#include "../../../../../cpp/include/EdgeDetector.hpp"
+#include "../../../../../cpp/include/PointSorter.hpp"
+#include "../../../../../cpp/jsi/SkanOpenCvJsiModule.hpp"
+#endif
 
 #include <atomic>
 #include <cstdint>
+#if __has_include(<jsi/jsi.h>)
 #include <jsi/jsi.h>
+#endif
 
 #if __has_include(<jni.h>)
 #include <jni.h>
