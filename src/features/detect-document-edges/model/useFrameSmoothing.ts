@@ -1,8 +1,8 @@
 import {useCallback, useRef, useState} from 'react';
 import {
   FrameDimensions,
+  projectQuadToCoverViewport,
   QuadDetectionFrame,
-  scaleQuadBetweenDimensions,
   ScanQuad,
   smoothQuadEma,
 } from '@entities/scan-quad';
@@ -47,7 +47,7 @@ export const useFrameSmoothing = (
       }
 
       missedFramesRef.current = 0;
-      const scaled = scaleQuadBetweenDimensions(
+      const scaled = projectQuadToCoverViewport(
         detection.quad,
         detection.sourceSize,
         viewportSize,

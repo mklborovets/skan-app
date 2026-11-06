@@ -58,22 +58,180 @@ export const scaleQuadBetweenDimensions = (
   };
 };
 
+export const projectQuadToCoverViewport = (
+  quad: ScanQuad,
+  sourceSize: FrameDimensions,
+  viewportSize: FrameDimensions,
+): ScanQuad => {
+  if (
+    sourceSize.width <= 0 ||
+    sourceSize.height <= 0 ||
+    viewportSize.width <= 0 ||
+    viewportSize.height <= 0
+  ) {
+    return createDefaultScanQuad(viewportSize);
+  }
+
+  const scale = Math.max(
+    viewportSize.width / sourceSize.width,
+    viewportSize.height / sourceSize.height,
+  );
+  const offsetX = (viewportSize.width - sourceSize.width * scale) * 0.5;
+  const offsetY = (viewportSize.height - sourceSize.height * scale) * 0.5;
+
+  const projectPoint = (pt: Point2D): Point2D =>
+    clampPointToBounds(
+      {
+        x: pt.x * scale + offsetX,
+        y: pt.y * scale + offsetY,
+      },
+      viewportSize.width,
+      viewportSize.height,
+      2,
+    );
+
+  return {
+    topLeft: projectPoint(quad.topLeft),
+    topRight: projectPoint(quad.topRight),
+    bottomRight: projectPoint(quad.bottomRight),
+    bottomLeft: projectPoint(quad.bottomLeft),
+  };
+};
+
+export const unprojectQuadFromCoverViewport = (
+  quad: ScanQuad,
+  viewportSize: FrameDimensions,
+  targetSize: FrameDimensions,
+): ScanQuad => {
+  if (
+    viewportSize.width <= 0 ||
+    viewportSize.height <= 0 ||
+    targetSize.width <= 0 ||
+    targetSize.height <= 0
+  ) {
+    return createDefaultScanQuad(targetSize);
+  }
+
+  const scale = Math.max(
+    viewportSize.width / targetSize.width,
+    viewportSize.height / targetSize.height,
+  );
+  const offsetX = (viewportSize.width - targetSize.width * scale) * 0.5;
+  const offsetY = (viewportSize.height - targetSize.height * scale) * 0.5;
+
+  const unprojectPoint = (pt: Point2D): Point2D =>
+    clampPointToBounds(
+      {
+        x: (pt.x - offsetX) / scale,
+        y: (pt.y - offsetY) / scale,
+      },
+      targetSize.width,
+      targetSize.height,
+      0,
+    );
+
+  return {
+    topLeft: unprojectPoint(quad.topLeft),
+    topRight: unprojectPoint(quad.topRight),
+    bottomRight: unprojectPoint(quad.bottomRight),
+    bottomLeft: unprojectPoint(quad.bottomLeft),
+  };
+};
+
+export const computeContainedBoardSize = (
+  containerSize: FrameDimensions,
+  sourceSize: FrameDimensions,
+): FrameDimensions => {
+  if (containerSize.width <= 0 || containerSize.height <= 0) {
+    return {width: 340, height: 460};
+  }
+  if (sourceSize.width <= 0 || sourceSize.height <= 0) {
+    return containerSize;
+  }
+
+  const scale = Math.min(
+    containerSize.width / sourceSize.width,
+    containerSize.height / sourceSize.height,
+  );
+
+  return {
+    width: Math.max(1, Math.round(sourceSize.width * scale)),
+    height: Math.max(1, Math.round(sourceSize.height * scale)),
+  };
+};
+
+const alignPreviousQuadForCyclicShift = (
+  previous: ScanQuad,
+  current: ScanQuad,
+): ScanQuad => {
+  const shifts: readonly ScanQuad[] = [
+    previous,
+    {
+      topLeft: previous.topRight,
+      topRight: previous.bottomRight,
+      bottomRight: previous.bottomLeft,
+      bottomLeft: previous.topLeft,
+    },
+    {
+      topLeft: previous.bottomRight,
+      topRight: previous.bottomLeft,
+      bottomRight: previous.topLeft,
+      bottomLeft: previous.topRight,
+    },
+    {
+      topLeft: previous.bottomLeft,
+      topRight: previous.topLeft,
+      bottomRight: previous.topRight,
+      bottomLeft: previous.bottomRight,
+    },
+  ];
+
+  let bestQuad: ScanQuad = previous;
+  let bestDist = Number.POSITIVE_INFINITY;
+
+  for (const candidate of shifts) {
+    const sum =
+      distanceBetweenPoints(candidate.topLeft, current.topLeft) +
+      distanceBetweenPoints(candidate.topRight, current.topRight) +
+      distanceBetweenPoints(candidate.bottomRight, current.bottomRight) +
+      distanceBetweenPoints(candidate.bottomLeft, current.bottomLeft);
+    if (sum < bestDist) {
+      bestDist = sum;
+      bestQuad = candidate;
+    }
+  }
+
+  return bestQuad;
+};
+
 export const smoothQuadEma = (
   previous: ScanQuad,
   current: ScanQuad,
   alpha: number,
-): ScanQuad => ({
-  topLeft: emaSmoothPoint(previous.topLeft, current.topLeft, alpha),
-  topRight: emaSmoothPoint(previous.topRight, current.topRight, alpha),
-  bottomRight: emaSmoothPoint(previous.bottomRight, current.bottomRight, alpha),
-  bottomLeft: emaSmoothPoint(previous.bottomLeft, current.bottomLeft, alpha),
-});
+): ScanQuad => {
+  const alignedPrev = alignPreviousQuadForCyclicShift(previous, current);
+  return {
+    topLeft: emaSmoothPoint(alignedPrev.topLeft, current.topLeft, alpha),
+    topRight: emaSmoothPoint(alignedPrev.topRight, current.topRight, alpha),
+    bottomRight: emaSmoothPoint(
+      alignedPrev.bottomRight,
+      current.bottomRight,
+      alpha,
+    ),
+    bottomLeft: emaSmoothPoint(
+      alignedPrev.bottomLeft,
+      current.bottomLeft,
+      alpha,
+    ),
+  };
+};
 
 export const computeQuadCornerDrift = (a: ScanQuad, b: ScanQuad): number => {
-  const d0 = distanceBetweenPoints(a.topLeft, b.topLeft);
-  const d1 = distanceBetweenPoints(a.topRight, b.topRight);
-  const d2 = distanceBetweenPoints(a.bottomRight, b.bottomRight);
-  const d3 = distanceBetweenPoints(a.bottomLeft, b.bottomLeft);
+  const alignedA = alignPreviousQuadForCyclicShift(a, b);
+  const d0 = distanceBetweenPoints(alignedA.topLeft, b.topLeft);
+  const d1 = distanceBetweenPoints(alignedA.topRight, b.topRight);
+  const d2 = distanceBetweenPoints(alignedA.bottomRight, b.bottomRight);
+  const d3 = distanceBetweenPoints(alignedA.bottomLeft, b.bottomLeft);
   return (d0 + d1 + d2 + d3) / 4;
 };
 
@@ -134,4 +292,3 @@ export const parseQuadCornersJson = (
 
 export const buildSvgPolygonPoints = (quad: ScanQuad): string =>
   `${quad.topLeft.x},${quad.topLeft.y} ${quad.topRight.x},${quad.topRight.y} ${quad.bottomRight.x},${quad.bottomRight.y} ${quad.bottomLeft.x},${quad.bottomLeft.y}`;
-

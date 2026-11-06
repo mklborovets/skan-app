@@ -31,46 +31,54 @@ export const InteractiveCropBoard: React.FC<InteractiveCropBoardProps> = ({
         <AppText variant="h3">Adjust Perspective Corners</AppText>
         <IconButton
           icon="maximize"
-          onPress={gestures.resetToFullBounds}
+          onPress={() => {
+            controller.gestures.resetToFullBounds();
+          }}
           accessibilityLabel="Expand corners"
         />
       </Row>
 
-      <View style={styles.board} onLayout={controller.onBoardLayout}>
-        {rawUri ? (
-          <Image
-            source={{uri: rawUri}}
-            style={styles.image}
-            resizeMode="stretch"
-          />
-        ) : null}
-
-        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-          <Svg width={boardSize.width} height={boardSize.height}>
-            <Polygon
-              points={polygonPoints}
-              fill={theme.colors.quadFill}
-              stroke={theme.colors.accent}
-              strokeWidth={2.5}
+      <View style={styles.boardViewport} onLayout={controller.onBoardLayout}>
+        <View
+          style={[
+            styles.board,
+            {width: boardSize.width, height: boardSize.height},
+          ]}>
+          {rawUri ? (
+            <Image
+              source={{uri: rawUri}}
+              style={styles.image}
+              resizeMode="stretch"
             />
-          </Svg>
-        </View>
+          ) : null}
 
-        {CORNER_KEYS.map(key => (
-          <DraggableCornerPin
-            key={key}
-            point={gestures.quad[key]}
-            active={gestures.activeCorner === key}
-            panHandlers={gestures.getPanHandlersForCorner(key)}
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <Svg width={boardSize.width} height={boardSize.height}>
+              <Polygon
+                points={polygonPoints}
+                fill={theme.colors.quadFill}
+                stroke={theme.colors.accent}
+                strokeWidth={2.5}
+              />
+            </Svg>
+          </View>
+
+          {CORNER_KEYS.map(key => (
+            <DraggableCornerPin
+              key={key}
+              point={gestures.quad[key]}
+              active={gestures.activeCorner === key}
+              panHandlers={gestures.getPanHandlersForCorner(key)}
+            />
+          ))}
+
+          <MagnifierLoupe
+            visible={gestures.activeCorner !== null}
+            imageUri={rawUri}
+            focalPoint={gestures.activePoint}
+            boardSize={boardSize}
           />
-        ))}
-
-        <MagnifierLoupe
-          visible={gestures.activeCorner !== null}
-          imageUri={rawUri}
-          focalPoint={gestures.activePoint}
-          boardSize={boardSize}
-        />
+        </View>
       </View>
 
       <Row justify="space-between" style={styles.footer}>
@@ -84,7 +92,7 @@ export const InteractiveCropBoard: React.FC<InteractiveCropBoardProps> = ({
           style={styles.buttonHalf}
         />
         <PrimaryButton
-          label="Apply Warp"
+          label="Apply"
           icon="check"
           loading={controller.isProcessing}
           onPress={() => {
@@ -112,8 +120,12 @@ const styles = StyleSheet.create({
   header: {
     width: '100%',
   },
-  board: {
+  boardViewport: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  board: {
     borderRadius: theme.radii.md,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,

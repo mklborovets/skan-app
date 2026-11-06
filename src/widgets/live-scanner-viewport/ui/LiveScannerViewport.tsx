@@ -55,6 +55,8 @@ export const LiveScannerViewport: React.FC<LiveScannerViewportProps> = ({
           isActive={true}
           photo
           pixelFormat="yuv"
+          outputOrientation="preview"
+          resizeMode="cover"
           torch={controller.torchOn ? 'on' : 'off'}
           frameProcessor={controller.frameProcessor}
         />

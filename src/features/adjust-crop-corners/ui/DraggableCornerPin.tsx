@@ -19,7 +19,8 @@ export const DraggableCornerPin: React.FC<DraggableCornerPinProps> = ({
   return (
     <View
       {...panHandlers}
-      hitSlop={{top: 25, bottom: 25, left: 25, right: 25}}
+      collapsable={false}
+      hitSlop={{top: 35, bottom: 35, left: 35, right: 35}}
       style={[
         styles.pinOuter,
         {
@@ -28,7 +29,10 @@ export const DraggableCornerPin: React.FC<DraggableCornerPinProps> = ({
         },
         active && styles.pinActive,
       ]}>
-      <View style={[styles.pinInner, active && styles.pinInnerActive]} />
+      <View
+        pointerEvents="none"
+        style={[styles.pinInner, active && styles.pinInnerActive]}
+      />
     </View>
   );
 };

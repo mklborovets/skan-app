@@ -11,11 +11,10 @@ import {
   createDefaultScanQuad,
   FrameDimensions,
   QuadDetectionFrame,
-  scaleQuadBetweenDimensions,
   ScanQuad,
+  unprojectQuadFromCoverViewport,
 } from '@entities/scan-quad';
 import {
-  pageRepository,
   ScannedPage,
   useScanSessionStore,
 } from '@entities/scanned-page';
@@ -124,26 +123,36 @@ export const useLiveScannerController = ({
           } else {
             rawUri = ensureFileUriPrefix(photo.path);
           }
-          photoWidth = photo.width;
-          photoHeight = photo.height;
+          const isPortraitViewport =
+            viewportSize.height >= viewportSize.width;
+          if (isPortraitViewport && photo.width > photo.height) {
+            photoWidth = photo.height;
+            photoHeight = photo.width;
+          } else {
+            photoWidth = photo.width;
+            photoHeight = photo.height;
+          }
         }
 
         const staticDetection = await detectStaticEdges(rawUri);
+        const effectiveWidth =
+          staticDetection.frameWidth > 0
+            ? staticDetection.frameWidth
+            : photoWidth;
+        const effectiveHeight =
+          staticDetection.frameHeight > 0
+            ? staticDetection.frameHeight
+            : photoHeight;
+
         const targetSize: FrameDimensions = {
-          width:
-            staticDetection.frameWidth > 0
-              ? staticDetection.frameWidth
-              : photoWidth,
-          height:
-            staticDetection.frameHeight > 0
-              ? staticDetection.frameHeight
-              : photoHeight,
+          width: effectiveWidth,
+          height: effectiveHeight,
         };
 
         const detectedCorners = staticDetection.detected
           ? staticDetection.corners
           : liveQuadOverride && viewportSize.width > 0
-            ? scaleQuadBetweenDimensions(
+            ? unprojectQuadFromCoverViewport(
                 liveQuadOverride,
                 viewportSize,
                 targetSize,
@@ -157,12 +166,17 @@ export const useLiveScannerController = ({
           preset: 'bw_document',
         });
 
+        const finalProcessedUri =
+          warped.outputUri && warped.outputUri !== 'file://'
+            ? warped.outputUri
+            : rawUri;
+
         const newPage: ScannedPage = {
           id: pageId,
           documentId: useScanSessionStore.getState().sessionId,
           pageIndex: useScanSessionStore.getState().pages.length,
           rawUri,
-          processedUri: warped.outputUri,
+          processedUri: finalProcessedUri,
           filterPreset: 'bw_document',
           corners: detectedCorners,
           ocrText: '',
@@ -172,11 +186,6 @@ export const useLiveScannerController = ({
         };
 
         addCapturedPage(newPage);
-        try {
-          await pageRepository.upsertPage(newPage);
-        } catch (dbErr) {
-          console.warn('[LiveScanner] Failed to persist page to DB:', dbErr);
-        }
         resetSmoothing();
         onPhotoCaptured(pageId);
       } catch (error) {

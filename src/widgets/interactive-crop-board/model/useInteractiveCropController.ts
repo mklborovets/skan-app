@@ -1,12 +1,14 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {Image, LayoutChangeEvent} from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Image, LayoutChangeEvent } from 'react-native';
+import { useDocumentStore } from '@entities/document';
 import {
+  computeContainedBoardSize,
   createDefaultScanQuad,
   FrameDimensions,
   scaleQuadBetweenDimensions,
   ScanQuad,
 } from '@entities/scan-quad';
-import {pageRepository, useScanSessionStore} from '@entities/scanned-page';
+import { pageRepository, useScanSessionStore } from '@entities/scanned-page';
 import {
   CornerGesturesState,
   useCornerGestures,
@@ -19,7 +21,7 @@ import {
   buildProcessedPageFilePath,
   ensureFileUriPrefix,
 } from '@shared/lib/file-system/pathResolver';
-import {deleteFileIfExists} from '@shared/lib/file-system/tempFileCleaner';
+import { deleteFileIfExists } from '@shared/lib/file-system/tempFileCleaner';
 
 export interface UseInteractiveCropControllerParams {
   pageId: string;
@@ -49,54 +51,72 @@ export const useInteractiveCropController = ({
   const updatePageCropAndFilter = useScanSessionStore(
     state => state.updatePageCropAndFilter,
   );
+  const updatePageOcrResult = useScanSessionStore(
+    state => state.updatePageOcrResult,
+  );
 
-  const [boardSize, setBoardSize] = useState<FrameDimensions>({
+  const [containerSize, setContainerSize] = useState<FrameDimensions>({
     width: 340,
     height: 460,
   });
-  const [rawImageSize, setRawImageSize] = useState<FrameDimensions | null>(
-    null,
-  );
+  const [rawImageSize, setRawImageSize] = useState<FrameDimensions | null>(() => {
+    if (page?.width && page.height && page.width > 0 && page.height > 0) {
+      return { width: page.width, height: page.height };
+    }
+    return null;
+  });
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const hasInitializedRef = useRef<boolean>(false);
+  const hasUserEditedRef = useRef<boolean>(false);
 
   const sourceSize: FrameDimensions = useMemo(() => {
     if (rawImageSize && rawImageSize.width > 0 && rawImageSize.height > 0) {
       return rawImageSize;
     }
-    const maxCornerX = page
-      ? Math.max(
-          page.corners.topLeft.x,
-          page.corners.topRight.x,
-          page.corners.bottomRight.x,
-          page.corners.bottomLeft.x,
-        )
-      : 0;
-    const maxCornerY = page
-      ? Math.max(
-          page.corners.topLeft.y,
-          page.corners.topRight.y,
-          page.corners.bottomRight.y,
-          page.corners.bottomLeft.y,
-        )
-      : 0;
-    return {
-      width: Math.max(page?.width ?? 1080, Math.round(maxCornerX / 0.92)),
-      height: Math.max(page?.height ?? 1440, Math.round(maxCornerY / 0.92)),
-    };
-  }, [page, rawImageSize]);
+    if (page?.width && page.height && page.width > 0 && page.height > 0) {
+      return { width: page.width, height: page.height };
+    }
+    return { width: 1080, height: 1440 };
+  }, [page?.height, page?.width, rawImageSize]);
+
+  const boardSize: FrameDimensions = useMemo(
+    () => computeContainedBoardSize(containerSize, sourceSize),
+    [containerSize, sourceSize],
+  );
 
   const initialBoardQuad: ScanQuad = useMemo(() => {
-    if (!page) {
+    if (!page?.corners) {
       return createDefaultScanQuad(boardSize);
     }
     return scaleQuadBetweenDimensions(page.corners, sourceSize, boardSize);
-  }, [boardSize, page, sourceSize]);
+  }, [boardSize, page?.corners, sourceSize]);
+
+  const handleUserGestureStart = useCallback(() => {
+    hasUserEditedRef.current = true;
+  }, []);
 
   const gestures = useCornerGestures({
     initialQuad: initialBoardQuad,
     boardSize,
+    onUserGestureStart: handleUserGestureStart,
   });
+
+  const setQuadRef = useRef(gestures.setQuad);
+  setQuadRef.current = gestures.setQuad;
+
+  const currentQuadRef = useRef(gestures.quad);
+  currentQuadRef.current = gestures.quad;
+
+  const containerSizeRef = useRef(containerSize);
+  containerSizeRef.current = containerSize;
+
+  const boardSizeRef = useRef(boardSize);
+  boardSizeRef.current = boardSize;
+
+  const sourceSizeRef = useRef(sourceSize);
+  sourceSizeRef.current = sourceSize;
+
+  const pageCornersRef = useRef(page?.corners);
+  pageCornersRef.current = page?.corners;
 
   useEffect(() => {
     if (!page?.rawUri) {
@@ -106,8 +126,23 @@ export const useInteractiveCropController = ({
     Image.getSize(
       page.rawUri,
       (width, height) => {
-        if (active && width > 0 && height > 0) {
-          setRawImageSize({width, height});
+        if (!active || width <= 0 || height <= 0) {
+          return;
+        }
+        const newRawSize = { width, height };
+        setRawImageSize(newRawSize);
+        const nextBoard = computeContainedBoardSize(
+          containerSizeRef.current,
+          newRawSize,
+        );
+        boardSizeRef.current = nextBoard;
+        if (!hasUserEditedRef.current && pageCornersRef.current && nextBoard.width > 0) {
+          const scaled = scaleQuadBetweenDimensions(
+            pageCornersRef.current,
+            newRawSize,
+            nextBoard,
+          );
+          setQuadRef.current(scaled);
         }
       },
       () => undefined,
@@ -118,49 +153,69 @@ export const useInteractiveCropController = ({
   }, [page?.rawUri]);
 
   const onBoardLayout = useCallback((event: LayoutChangeEvent) => {
-    const {width, height} = event.nativeEvent.layout;
+    const { width, height } = event.nativeEvent.layout;
     if (width <= 0 || height <= 0) {
       return;
     }
-    setBoardSize({width, height});
-  }, []);
-
-  useEffect(() => {
-    if (!page || boardSize.width <= 0 || boardSize.height <= 0) {
+    const prevContainer = containerSizeRef.current;
+    if (
+      Math.abs(prevContainer.width - width) < 1 &&
+      Math.abs(prevContainer.height - height) < 1
+    ) {
       return;
     }
-    if (!hasInitializedRef.current) {
-      hasInitializedRef.current = true;
-      const initialQuad = scaleQuadBetweenDimensions(
-        page.corners,
-        sourceSize,
-        boardSize,
+    const nextContainer = { width, height };
+    containerSizeRef.current = nextContainer;
+    setContainerSize(nextContainer);
+
+    const prevBoard = boardSizeRef.current;
+    const newBoard = computeContainedBoardSize(
+      nextContainer,
+      sourceSizeRef.current,
+    );
+    boardSizeRef.current = newBoard;
+
+    if (!hasUserEditedRef.current) {
+      if (pageCornersRef.current && sourceSizeRef.current.width > 0) {
+        const scaled = scaleQuadBetweenDimensions(
+          pageCornersRef.current,
+          sourceSizeRef.current,
+          newBoard,
+        );
+        setQuadRef.current(scaled);
+      }
+    } else if (prevBoard.width > 0 && prevBoard.height > 0) {
+      const scaled = scaleQuadBetweenDimensions(
+        currentQuadRef.current,
+        prevBoard,
+        newBoard,
       );
-      gestures.setQuad(initialQuad);
+      setQuadRef.current(scaled);
     }
-  }, [boardSize, gestures, page, sourceSize]);
+  }, []);
 
   const onAutoDetectCorners = useCallback(async () => {
     if (!page) {
       return;
     }
     setIsProcessing(true);
+    hasUserEditedRef.current = true;
     try {
       const detection = await detectStaticEdges(page.rawUri);
       if (detection.detected) {
         const scaled = scaleQuadBetweenDimensions(
           detection.corners,
-          {width: detection.frameWidth, height: detection.frameHeight},
-          boardSize,
+          { width: detection.frameWidth, height: detection.frameHeight },
+          boardSizeRef.current,
         );
-        gestures.setQuad(scaled);
+        setQuadRef.current(scaled);
       } else {
-        gestures.resetToFullBounds();
+        setQuadRef.current(createDefaultScanQuad(boardSizeRef.current));
       }
     } finally {
       setIsProcessing(false);
     }
-  }, [boardSize, gestures, page]);
+  }, [page]);
 
   const onConfirmCrop = useCallback(async () => {
     if (!page) {
@@ -172,8 +227,8 @@ export const useInteractiveCropController = ({
       const previousProcessedUri = page.processedUri;
       const fullResQuad = scaleQuadBetweenDimensions(
         gestures.quad,
-        boardSize,
-        sourceSize,
+        boardSizeRef.current,
+        sourceSizeRef.current,
       );
       const outputPath = buildProcessedPageFilePath(
         page.id,
@@ -187,25 +242,33 @@ export const useInteractiveCropController = ({
         preset: page.filterPreset,
       });
 
-      const nextWidth = warped.width > 0 ? warped.width : page.width;
-      const nextHeight = warped.height > 0 ? warped.height : page.height;
+      const rawWidth = sourceSizeRef.current.width;
+      const rawHeight = sourceSizeRef.current.height;
 
       updatePageCropAndFilter({
         pageId: page.id,
         processedUri: warped.outputUri,
         corners: fullResQuad,
         filterPreset: page.filterPreset,
-        width: nextWidth,
-        height: nextHeight,
+        width: rawWidth,
+        height: rawHeight,
       });
+      updatePageOcrResult(page.id, '', []);
 
-      await pageRepository.upsertPage({
-        ...page,
-        processedUri: warped.outputUri,
-        corners: fullResQuad,
-        width: nextWidth,
-        height: nextHeight,
-      });
+      const activeTitle = useScanSessionStore.getState().activeDocumentTitle;
+      await pageRepository.upsertPage(
+        {
+          ...page,
+          processedUri: warped.outputUri,
+          corners: fullResQuad,
+          width: rawWidth,
+          height: rawHeight,
+          ocrText: '',
+          ocrBlocks: [],
+        },
+        activeTitle,
+      );
+      await useDocumentStore.getState().refreshDocuments();
 
       if (
         previousProcessedUri &&
@@ -222,12 +285,11 @@ export const useInteractiveCropController = ({
       setIsProcessing(false);
     }
   }, [
-    boardSize,
     gestures.quad,
     onApplyCompleted,
     page,
-    sourceSize,
     updatePageCropAndFilter,
+    updatePageOcrResult,
   ]);
 
   return {

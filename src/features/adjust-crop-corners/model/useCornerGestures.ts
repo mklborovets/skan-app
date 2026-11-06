@@ -14,6 +14,7 @@ export interface UseCornerGesturesParams {
   initialQuad: ScanQuad;
   boardSize: FrameDimensions;
   onQuadChanged?: (quad: ScanQuad) => void;
+  onUserGestureStart?: () => void;
 }
 
 export interface CornerGesturesState {
@@ -31,12 +32,19 @@ export const useCornerGestures = ({
   initialQuad,
   boardSize,
   onQuadChanged,
+  onUserGestureStart,
 }: UseCornerGesturesParams): CornerGesturesState => {
   const [quad, setQuadState] = useState<ScanQuad>(initialQuad);
   const [activeCorner, setActiveCorner] = useState<CornerKey | null>(null);
   const startPointRef = useRef<Point2D>({x: 0, y: 0});
   const latestQuadRef = useRef<ScanQuad>(initialQuad);
   latestQuadRef.current = quad;
+
+  const boardSizeRef = useRef<FrameDimensions>(boardSize);
+  boardSizeRef.current = boardSize;
+
+  const onUserGestureStartRef = useRef(onUserGestureStart);
+  onUserGestureStartRef.current = onUserGestureStart;
 
   const setQuad = useCallback(
     (newQuad: ScanQuad) => {
@@ -49,31 +57,36 @@ export const useCornerGestures = ({
 
   const updateCorner = useCallback(
     (cornerKey: CornerKey, candidate: Point2D) => {
-      if (boardSize.width <= 0 || boardSize.height <= 0) {
+      const currentBoardSize = boardSizeRef.current;
+      if (currentBoardSize.width <= 0 || currentBoardSize.height <= 0) {
         return;
       }
       const nextQuad = updateQuadCornerClamped(
         latestQuadRef.current,
         cornerKey,
         candidate,
-        boardSize,
+        currentBoardSize,
         SCAN_CONSTANTS.CORNER_SNAP_RADIUS,
       );
       latestQuadRef.current = nextQuad;
       setQuad(nextQuad);
       onQuadChanged?.(nextQuad);
     },
-    [boardSize, onQuadChanged],
+    [onQuadChanged, setQuad],
   );
 
   const responders = useMemo(() => {
     const createForKey = (cornerKey: CornerKey): PanResponderInstance =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
+        onStartShouldSetPanResponderCapture: () => true,
         onMoveShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponderCapture: () => false,
+        onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {
-          startPointRef.current = latestQuadRef.current[cornerKey];
+          startPointRef.current = {...latestQuadRef.current[cornerKey]};
           setActiveCorner(cornerKey);
+          onUserGestureStartRef.current?.();
         },
         onPanResponderMove: (_, gestureState) => {
           const nextPt: Point2D = {
@@ -104,14 +117,16 @@ export const useCornerGestures = ({
   );
 
   const resetToFullBounds = useCallback(() => {
-    if (boardSize.width <= 0 || boardSize.height <= 0) {
+    const currentBoardSize = boardSizeRef.current;
+    if (currentBoardSize.width <= 0 || currentBoardSize.height <= 0) {
       return;
     }
-    const fullQuad = createDefaultScanQuad(boardSize, 0.04);
+    const fullQuad = createDefaultScanQuad(currentBoardSize, 0.04);
     latestQuadRef.current = fullQuad;
     setQuad(fullQuad);
+    onUserGestureStartRef.current?.();
     onQuadChanged?.(fullQuad);
-  }, [boardSize, onQuadChanged]);
+  }, [onQuadChanged, setQuad]);
 
   const activePoint = activeCorner ? quad[activeCorner] : null;
 
